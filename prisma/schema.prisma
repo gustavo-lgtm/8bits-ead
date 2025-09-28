@@ -1,0 +1,36 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Course {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  createdAt   DateTime @default(now())
+
+  unlockCodes CourseUnlockCode[]
+}
+
+model CourseUnlockCode {
+  id        String       @id @default(cuid())
+  courseId  String
+  code      String       @unique
+  status    UnlockStatus @default(ACTIVE)
+  createdAt DateTime     @default(now())
+  usedAt    DateTime?
+
+  course    Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+}
+
+enum UnlockStatus {
+  ACTIVE
+  USED
+  REVOKED
+}
