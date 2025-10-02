@@ -7,13 +7,83 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Course {
-  id          String   @id @default(cuid())
-  slug        String   @unique
-  title       String
-  createdAt   DateTime @default(now())
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  name         String?
+  passwordHash String?
+  createdAt    DateTime     @default(now())
 
-  unlockCodes CourseUnlockCode[]
+  enrollments  UserCourse[]
+  accounts     Account[]
+  sessions     Session[]
+  unitProgress UserUnitProgress[]
+}
+
+model Course {
+  id           String   @id @default(cuid())
+  slug         String   @unique
+  title        String
+  createdAt    DateTime @default(now())
+
+  unlockCodes  CourseUnlockCode[]
+  enrollments  UserCourse[]
+  modules      Module[]
+}
+
+model Module {
+  id         String  @id @default(cuid())
+  courseId   String
+  slug       String
+  title      String
+  icon       String?
+  sortIndex  Int     @default(0)
+
+  course     Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  units      Unit[]
+
+  @@unique([courseId, slug])
+  @@index([courseId, sortIndex])
+}
+
+model Unit {
+  id          String   @id @default(cuid())
+  moduleId    String
+  slug        String
+  title       String
+  type        UnitType
+  youtubeId   String?
+  driveFileId String?
+  url         String?
+  durationSec Int?
+  sortIndex   Int       @default(0)
+  requiresCompletedPrevious Boolean @default(false)
+
+  module      Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  progress    UserUnitProgress[]
+
+  @@unique([moduleId, slug])
+  @@index([moduleId, sortIndex])
+}
+
+enum UnitType {
+  VIDEO
+  DOC
+  LINK
+}
+
+model UserCourse {
+  id         String   @id @default(cuid())
+  userId     String
+  courseId   String
+  unlockedAt DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
 }
 
 model CourseUnlockCode {
@@ -33,4 +103,63 @@ enum UnlockStatus {
   ACTIVE
   USED
   REVOKED
+}
+
+/* --- PROGRESSO DE AULA --- */
+model UserUnitProgress {
+  id            String          @id @default(cuid())
+  userId        String
+  unitId        String
+  status        ProgressStatus  @default(IN_PROGRESS)
+  lastViewedAt  DateTime        @default(now())
+  completedAt   DateTime?
+
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unit          Unit            @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, unitId])
+  @@index([userId])
+  @@index([unitId])
+}
+
+enum ProgressStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
+/* --- NextAuth --- */
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @map("refresh_token")
+  access_token      String? @map("access_token")
+  expires_at        Int?    @map("expires_at")
+  token_type        String? @map("token_type")
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
 }
