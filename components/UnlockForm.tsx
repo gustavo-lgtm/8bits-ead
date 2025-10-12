@@ -20,16 +20,19 @@ export default function UnlockForm({ slug }: { slug: string }) {
       });
       const data = await res.json();
 
-      if (!res.ok || !data.ok) {
+      // ✅ Corrigido: a API usa "success" e não "ok"
+      if (!res.ok || !data.success) {
         alert(data.error ?? "Falha ao validar");
         setLoading(false);
         return;
       }
 
-      alert(`OK - course ${slug} unlocked`);
+      // ✅ Tudo certo
+      alert(`Curso "${slug}" desbloqueado com sucesso!`);
       router.push("/painel");
-    } catch {
-      alert("Erro de rede");
+    } catch (err) {
+      console.error("Erro de rede ou execução:", err);
+      alert("Erro de rede, tente novamente.");
       setLoading(false);
     }
   };
@@ -37,10 +40,10 @@ export default function UnlockForm({ slug }: { slug: string }) {
   return (
     <form onSubmit={onSubmit} className="mt-6 space-y-3">
       <label className="block text-sm font-medium">
-        Secret code
+        Código secreto
         <input
           className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2"
-          placeholder="Type the code from your box"
+          placeholder="Digite o código da sua box"
           value={code}
           onChange={(e) => setCode(e.target.value)}
           required
@@ -52,7 +55,7 @@ export default function UnlockForm({ slug }: { slug: string }) {
         disabled={!code || loading}
         className="w-full rounded-lg bg-black px-4 py-2 text-white disabled:opacity-60"
       >
-        {loading ? "Validando..." : "Unlock"}
+        {loading ? "Validando..." : "Desbloquear"}
       </button>
     </form>
   );

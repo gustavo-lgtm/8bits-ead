@@ -1,50 +1,76 @@
-import { prisma } from "@/lib/db";
+import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
-    const userId = (session?.user as any)?.id as string | undefined;
-
-    if (!userId) {
-      return Response.json({ ok: false, error: "Não autenticado" }, { status: 401 });
+    if (!session || !session.user?.id) {
+      return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
     }
 
-    const { slug, code } = (await request.json()) as { slug?: string; code?: string };
+    const userId = session.user.id;
+    const body = await req.json();
+    const { slug, code } = body ?? {};
+
     if (!slug || !code) {
-      return Response.json({ ok: false, error: "slug e code são obrigatórios" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Informe 'slug' do curso e 'code' de desbloqueio" },
+        { status: 400 }
+      );
     }
 
     const course = await prisma.course.findUnique({ where: { slug } });
     if (!course) {
-      return Response.json({ ok: false, error: "Curso não encontrado" }, { status: 404 });
+      return NextResponse.json({ error: "Curso não encontrado" }, { status: 404 });
     }
-
-    const normalized = code.trim().toUpperCase();
 
     const unlock = await prisma.courseUnlockCode.findFirst({
-      where: { courseId: course.id, code: normalized, status: "ACTIVE" },
+      where: { courseId: course.id, code, status: "ACTIVE" },
     });
-
     if (!unlock) {
-      return Response.json({ ok: false, error: "Código inválido ou já usado" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Código inválido ou já usado" },
+        { status: 400 }
+      );
     }
 
-    await prisma.$transaction([
-      prisma.courseUnlockCode.update({
-        where: { id: unlock.id },
-        data: { status: "USED", usedAt: new Date() },
-      }),
-      prisma.userCourse.upsert({
-        where: { userId_courseId: { userId, courseId: course.id } },
-        update: {},
-        create: { userId, courseId: course.id },
-      }),
-    ]);
+    await prisma.courseUnlockCode.update({
+      where: { id: unlock.id },
+      data: { status: "USED", usedAt: new Date() },
+    });
 
-    return Response.json({ ok: true, message: "Curso desbloqueado", courseId: course.id });
-  } catch (e) {
-    return Response.json({ ok: false, error: "Erro ao processar" }, { status: 500 });
+    await prisma.userCourse.upsert({
+      where: { userId_courseId: { userId, courseId: course.id } },
+      update: {},
+      create: { userId, courseId: course.id },
+    });
+
+    const welcomeUnit = await prisma.unit.findFirst({
+      where: { module: { courseId: course.id }, isWelcome: true },
+    });
+
+    if (welcomeUnit) {
+      await prisma.userUnitProgress.upsert({
+        where: { userId_unitId: { userId, unitId: welcomeUnit.id } },
+        update: { status: "COMPLETED", completedAt: new Date() },
+        create: {
+          userId,
+          unitId: welcomeUnit.id,
+          status: "COMPLETED",
+          completedAt: new Date(),
+        },
+      });
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Curso desbloqueado com sucesso!",
+      welcomeCompleted: !!welcomeUnit,
+    });
+  } catch (err) {
+    console.error("Erro no /api/unlock:", err);
+    return NextResponse.json({ error: "Falha interna no desbloqueio" }, { status: 500 });
   }
 }
