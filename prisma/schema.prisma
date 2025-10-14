@@ -71,7 +71,8 @@ model Module {
   icon       String?
   sortIndex  Int     @default(0)
 
-  description     String? 
+  description String? 
+  posterUrl   String?   // 🔹 imagem 16:9 do card do módulo
 
   // --- Gamificação ---
   isOptional   Boolean  @default(false)   // capítulo opcional (fora da pontuação principal)
@@ -101,7 +102,8 @@ model Unit {
   requiresCompletedPrevious Boolean @default(false)
   isWelcome   Boolean  @default(false)
 
-  description     String? 
+  description String? 
+  posterUrl   String?   // 🔹 imagem 16:9 do card do módulo
 
   // --- Gamificação ---
   isOptional Boolean   @default(false)    // trilha opcional (não entra na principal)
