@@ -5,8 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, CheckCircle2 } from "lucide-react";
 import YouTubeProgressPlayer from "@/components/video/YouTubeProgressPlayer";
 import CompletionPopup from "@/components/CompletionPopup";
-// se tiver um Lottie específico, importe o JSON:
-// import trophyAnim from "@/assets/lottie/trophy.json";
+import trophyAnim from "@/assets/lottie/trophy.json";
 
 const BRAND = "#ffab40";
 
@@ -22,6 +21,8 @@ type UnitClientProps = {
     thresholdPct: number;
     unitTypeLabel: "Obrigatória" | "Extra" | "Opcional";
     unitXP: number;
+    moduleTitle?: string;
+    courseTitle?: string;
   };
   initialCompleted?: boolean;
 };
@@ -33,7 +34,7 @@ export default function UnitClient({
   initialCompleted = false,
 }: UnitClientProps) {
   const [watchedPct, setWatchedPct] = useState(0);
-  const [canComplete, setCanComplete] = useState(initialCompleted);
+  const [canComplete, setCanComplete] = useState<boolean>(false);
   const [isCompleted, setIsCompleted] = useState(initialCompleted);
   const [isCompleting, setIsCompleting] = useState(false);
 
@@ -41,13 +42,11 @@ export default function UnitClient({
   const [awardedXp, setAwardedXp] = useState(initialCompleted ? unit.unitXP : 0);
   const [nextUnitSlug, setNextUnitSlug] = useState<string | null>(null);
 
-  // debounce para salvar progresso
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSentRef = useRef({ sec: 0, pct: 0 });
 
   const backHref = useMemo(() => `/c/${courseSlug}/${moduleSlug}`, [courseSlug, moduleSlug]);
 
-  // NOVO: garantir persistência mesmo se o server não tiver sessão
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -61,20 +60,23 @@ export default function UnitClient({
         const data: { isCompleted: boolean; watchedPct: number; unitXP: number } = await res.json();
         if (ignore) return;
         setIsCompleted(data.isCompleted);
+        setWatchedPct(data.watchedPct);
         setCanComplete(data.isCompleted || data.watchedPct >= unit.thresholdPct);
-        setAwardedXp(data.isCompleted ? (unit.unitXP ?? data.unitXP) : 0);
-      } catch {}
+        setAwardedXp(data.isCompleted ? unit.unitXP : 0);
+      } catch {
+        setCanComplete(initialCompleted);
+      }
     })();
-    return () => { ignore = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unit.id]); // roda 1x por unidade
+    return () => {
+      ignore = true;
+    };
+  }, [unit.id, unit.thresholdPct, initialCompleted]);
 
   const onProgress = useCallback(
     (sec: number, pct: number) => {
       setWatchedPct(pct);
-      if (!isCompleted && !canComplete && pct >= unit.thresholdPct) setCanComplete(true);
+      if (!isCompleted && pct >= unit.thresholdPct) setCanComplete(true);
 
-      // throttle debounced
       const secDelta = Math.floor(sec) - Math.floor(lastSentRef.current.sec);
       const pctDelta = pct - lastSentRef.current.pct;
       if (secDelta < 1 && pctDelta < 0.5) return;
@@ -95,7 +97,7 @@ export default function UnitClient({
         } catch {}
       }, 400);
     },
-    [canComplete, isCompleted, unit.id, unit.thresholdPct]
+    [isCompleted, unit.id, unit.thresholdPct]
   );
 
   const onClickComplete = useCallback(async () => {
@@ -107,9 +109,11 @@ export default function UnitClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ unitId: unit.id }),
       });
-      if (!res.ok) { setIsCompleting(false); return; }
+      if (!res.ok) {
+        setIsCompleting(false);
+        return;
+      }
       const data: { awardedXp: number; nextUnitSlug: string | null } = await res.json();
-
       const xpToShow = data.awardedXp && data.awardedXp > 0 ? data.awardedXp : unit.unitXP;
       setAwardedXp(xpToShow);
       setNextUnitSlug(data.nextUnitSlug ?? unit.slug);
@@ -141,9 +145,14 @@ export default function UnitClient({
         </Link>
       </div>
 
+      {/* cabeçalho hierárquico */}
+      <div className="text-xs text-neutral-500">
+        UNIDADE • {unit.courseTitle || "Curso"} • {unit.moduleTitle || "Módulo"}
+      </div>
+
       {/* título e descrição */}
-      <div className="md:w-[620px]">
-        <div className="text-xl font-bold">Unidade: {unit.title}</div>
+      <div className="md:w-[620px] mt-1">
+        <div className="text-2xl font-bold">{unit.title}</div>
         {unit.description ? (
           <p className="mt-1 text-[15px] leading-relaxed text-neutral-700">{unit.description}</p>
         ) : (
@@ -165,22 +174,20 @@ export default function UnitClient({
           Tipo de unidade: <span className="font-semibold">{unit.unitTypeLabel}</span>
         </div>
 
-        {/* player SEM borda preta */}
-        <div className="mt-4 rounded-3xl bg-neutral-100 p-2 sm:p-3">
-          {unit.youtubeId ? (
-            <div className="rounded-2xl overflow-hidden">
-              <YouTubeProgressPlayer
-                youtubeId={unit.youtubeId}
-                thresholdPct={unit.thresholdPct}
-                onProgress={onProgress}
-                onThresholdReached={() => setCanComplete(true)}
-                className="bg-transparent" // sem borda/sem fundo
-              />
-            </div>
-          ) : (
-            <div className="aspect-video w-full rounded-2xl bg-neutral-200" />
-          )}
-        </div>
+        {/* PLAYER — sem borda/padding */}
+        {unit.youtubeId ? (
+          <div className="mt-4 rounded-2xl overflow-hidden">
+            <YouTubeProgressPlayer
+              youtubeId={unit.youtubeId}
+              thresholdPct={unit.thresholdPct}
+              onProgress={onProgress}
+              onThresholdReached={() => setCanComplete(true)}
+              className="bg-transparent"
+            />
+          </div>
+        ) : (
+          <div className="mt-4 aspect-video w-full rounded-2xl bg-neutral-200" />
+        )}
 
         {/* ação: botão ou badge */}
         <div className="mt-4">
@@ -215,13 +222,17 @@ export default function UnitClient({
         </div>
       </div>
 
-      {/* popup com Lottie opcional */}
+      {/* pop-up */}
       <CompletionPopup
         open={popupOpen}
         xp={awardedXp}
         onClose={() => setPopupOpen(false)}
         onGoNext={goToNextUnits}
-        // lottieAnimation={trophyAnim}
+        lottieAnimation={trophyAnim}
+        lottieSize={128}
+        lottieSpeed={0.6}
+        xpDelayMs={1000}
+        xpCountDurationMs={1200}
       />
     </div>
   );

@@ -20,6 +20,7 @@ export default async function UnitPage({ params }: Props) {
   const session: any = await getServerSession(authOptions as any);
   const userId: string | undefined = session?.user?.id;
 
+  // Busca a unidade + títulos do curso e do módulo
   const unit = await prisma.unit.findFirst({
     where: {
       slug: unitSlug,
@@ -35,7 +36,14 @@ export default async function UnitPage({ params }: Props) {
       xpValue: true,
       isOptional: true,
       isExtra: true,
-      module: { select: { slug: true, course: { select: { slug: true } } } },
+      module: {
+        select: {
+          id: true,
+          slug: true,
+          title: true, // << título do módulo
+          course: { select: { slug: true, title: true } }, // << título do curso
+        },
+      },
     },
   });
 
@@ -47,11 +55,10 @@ export default async function UnitPage({ params }: Props) {
     );
   }
 
-  // tipo (rótulo)
   const unitTypeLabel = unit.isExtra ? "Extra" : unit.isOptional ? "Opcional" : "Obrigatória";
   const unitXP = unit.xpValue ?? 30;
 
-  // progresso do usuário (se logado)
+  // Progresso inicial do usuário (para abrir já marcada como concluída, se for o caso)
   let initialCompleted = false;
   if (userId) {
     const prog = await prisma.userUnitProgress.findUnique({
@@ -75,6 +82,9 @@ export default async function UnitPage({ params }: Props) {
           thresholdPct: unit.thresholdPct ?? 85,
           unitTypeLabel,
           unitXP,
+          // >>> títulos vindos do banco
+          courseTitle: unit.module.course.title,
+          moduleTitle: unit.module.title,
         }}
         initialCompleted={initialCompleted}
       />
