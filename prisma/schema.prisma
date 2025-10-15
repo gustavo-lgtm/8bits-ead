@@ -35,7 +35,7 @@ model Course {
 
   description     String? 
 
-  // 🔸 novas propriedades
+  // novas propriedades
   category     CourseCategory @default(GAME_DEV)
   level        CourseLevel    @default(N1)
 
@@ -50,11 +50,11 @@ model Course {
 }
 
 enum CourseCategory {
-  GAME_DEV   // 🎮
-  ROBOTIC    // 🤖
-  MAKER      // 🛠️
-  AI         // 🧠
-  DIGITAL    // 👾
+  GAME_DEV
+  ROBOTIC
+  MAKER
+  AI
+  DIGITAL
 }
 
 enum CourseLevel {
@@ -72,9 +72,9 @@ model Module {
   sortIndex  Int     @default(0)
 
   description String? 
-  posterUrl   String?   // 🔹 imagem 16:9 do card do módulo
+  posterUrl   String?   // imagem 16:9 do card do módulo
 
-  // --- Gamificação ---
+  // Gamificação
   isOptional   Boolean  @default(false)   // capítulo opcional (fora da pontuação principal)
   bonusPercent Int      @default(10)      // % do bônus ao concluir obrigatórias
 
@@ -103,14 +103,17 @@ model Unit {
   isWelcome   Boolean  @default(false)
 
   description String? 
-  posterUrl   String?   // 🔹 imagem 16:9 do card do módulo
+  posterUrl   String?   // imagem 16:9 do card do módulo
 
-  // --- Gamificação ---
-  isOptional Boolean   @default(false)    // trilha opcional (não entra na principal)
-  isExtra    Boolean   @default(false)    // desafio extra (entra na principal)
-  xpMode     XPMode    @default(FIXED)    // FIXED ou QUIZ_PARTIAL
-  xpValue    Int?                         // pontos fixos (FIXED)
-  xpMax      Int?                         // teto de pontos (QUIZ_PARTIAL)
+  // Gamificação
+  isOptional Boolean   @default(false)     // trilha opcional (não entra na principal)
+  isExtra    Boolean   @default(false)     // desafio extra (entra na principal)
+  xpMode     XPMode    @default(FIXED)     // FIXED ou QUIZ_PARTIAL
+  xpValue    Int?      @default(30)        // pontos fixos quando FIXED (default 30)
+  xpMax      Int?                          // teto de pontos quando QUIZ_PARTIAL
+
+  // Regras por unidade
+  thresholdPct Int     @default(85)        // percentual mínimo assistido para concluir
 
   module      Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   progress    UserUnitProgress[]
@@ -127,7 +130,7 @@ enum UnitType {
   LINK
 }
 
-/* --- PROGRESSO DE AULA --- */
+/* Progresso de aula */
 model UserUnitProgress {
   id            String          @id @default(cuid())
   userId        String
@@ -135,6 +138,10 @@ model UserUnitProgress {
   status        ProgressStatus  @default(IN_PROGRESS)
   lastViewedAt  DateTime        @default(now())
   completedAt   DateTime?
+
+  // novos campos de progresso de vídeo
+  watchedSeconds Int            @default(0)
+  watchedPct     Float          @default(0)
 
   user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   unit          Unit            @relation(fields: [unitId], references: [id], onDelete: Cascade)
@@ -149,7 +156,7 @@ enum ProgressStatus {
   COMPLETED
 }
 
-/* --- MATRÍCULA / DESBLOQUEIO --- */
+/* Matrícula / desbloqueio */
 model UserCourse {
   id         String   @id @default(cuid())
   userId     String
@@ -183,7 +190,7 @@ enum UnlockStatus {
   REVOKED
 }
 
-/* --- GAMIFICAÇÃO: Enums --- */
+/* Gamificação: enums */
 enum XPMode {
   FIXED
   QUIZ_PARTIAL
@@ -192,22 +199,22 @@ enum XPMode {
 enum XPType {
   MANDATORY   // Itens obrigatórios
   EXTRA       // Desafios/atividades extras
-  OPTIONAL    // Trilhas opcionais (não contam na principal)
+  OPTIONAL    // Trilhas opcionais
   BONUS       // Bônus por módulo
   WELCOME     // XP de boas-vindas
 }
 
-/* --- GAMIFICAÇÃO: Configuração por curso --- */
+/* Gamificação: configuração por curso */
 model CourseGamificationConfig {
   id                   String  @id @default(cuid())
   courseId             String  @unique
   countExtraInPrimary  Boolean @default(true) // se false, EXTRA não entra na principal
-  xpWelcome            Int     @default(0)    // XP ao desbloquear curso (opcional)
+  xpWelcome            Int     @default(0)    // XP ao desbloquear curso
 
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 }
 
-/* --- GAMIFICAÇÃO: Eventos (log imutável) --- */
+/* Gamificação: eventos (log imutável) */
 model UserXPEvent {
   id        String   @id @default(cuid())
   userId    String
@@ -228,21 +235,21 @@ model UserXPEvent {
   @@index([userId, courseId, createdAt])
   @@index([courseId, moduleId, unitId])
 
-  // Idempotência por alvo (atenção: campos opcionais em UNIQUE permitem múltiplos NULL no SQLite)
+  // Idempotência por alvo
   @@unique([userId, unitId, eventType])
   @@unique([userId, moduleId, eventType])
   @@unique([userId, courseId, eventType])
 }
 
-/* --- GAMIFICAÇÃO: Saldos materializados --- */
+/* Gamificação: saldos materializados */
 model UserXPBalance {
   id         String   @id @default(cuid())
   userId     String
   courseId   String
 
-  xpMandatory Int     @default(0)  // tipo 1
-  xpExtra     Int     @default(0)  // tipo 2
-  xpOptional  Int     @default(0)  // tipo 3
+  xpMandatory Int     @default(0)
+  xpExtra     Int     @default(0)
+  xpOptional  Int     @default(0)
   xpBonus     Int     @default(0)
   xpWelcome   Int     @default(0)
 
@@ -258,7 +265,7 @@ model UserXPBalance {
   @@index([courseId, xpPrimary])
 }
 
-/* --- NextAuth --- */
+/* NextAuth */
 model Account {
   id                String  @id @default(cuid())
   userId            String

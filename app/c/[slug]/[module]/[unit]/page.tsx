@@ -1,305 +1,83 @@
-import { notFound } from "next/navigation";
-import Link from "next/link";
-import { prisma } from "@/lib/db";
+// app/c/[slug]/[module]/[unit]/page.tsx
+import * as database from "@/lib/db";
+import UnitClient from "./UnitClient";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import UnitProgressClient from "@/components/UnitProgressClient";
 
-export default async function UnitPage({
-  params,
-}: {
-  params: Promise<{ slug: string; module: string; unit: string }>;
-}) {
-  const { slug, module, unit } = await params;
+// resolve prisma independente do export
+const prisma =
+  (database as any).prisma ??
+  (database as any).db ??
+  (database as any).default;
 
-  // 1) Curso
-  const course = await prisma.course.findUnique({
-    where: { slug },
-    select: { id: true, slug: true, title: true },
+type Props = {
+  params: { slug: string; module: string; unit: string };
+};
+
+export default async function UnitPage({ params }: Props) {
+  const { slug: courseSlug, module: moduleSlug, unit: unitSlug } = params;
+
+  const session: any = await getServerSession(authOptions as any);
+  const userId: string | undefined = session?.user?.id;
+
+  const unit = await prisma.unit.findFirst({
+    where: {
+      slug: unitSlug,
+      module: { slug: moduleSlug, course: { slug: courseSlug } },
+    },
+    select: {
+      id: true,
+      slug: true,
+      title: true,
+      description: true,
+      youtubeId: true,
+      thresholdPct: true,
+      xpValue: true,
+      isOptional: true,
+      isExtra: true,
+      module: { select: { slug: true, course: { select: { slug: true } } } },
+    },
   });
-  if (!course) return notFound();
 
-  // 2) Módulo dentro do curso
-  const mod = await prisma.module.findFirst({
-    where: { slug: module, courseId: course.id },
-    select: { id: true, slug: true, title: true },
-  });
-  if (!mod) return notFound();
-
-  // 3) Unit dentro do módulo
-  const unitRec = await prisma.unit.findFirst({
-    where: { slug: unit, moduleId: mod.id },
-  });
-  if (!unitRec) return notFound(); // daqui pra baixo é garantido non-null
-
-  // 4) Sessão e gate de acesso
-  const session = await getServerSession(authOptions);
-
-  if (!session) {
-    const callback = encodeURIComponent(`/c/${slug}/${module}/${unit}`);
+  if (!unit) {
     return (
-      <main className="min-h-dvh p-6 md:p-10">
-        <div className="mx-auto max-w-3xl">
-          <h1 className="text-2xl md:text-3xl font-bold">{course.title}</h1>
-          <p className="text-sm text-gray-500 mt-2">
-            Módulo: {mod.title} - Aula: {unitRec.title}
-          </p>
-
-          <div className="mt-6 rounded-xl border p-4">
-            <div className="font-medium">Login necessário</div>
-            <p className="text-sm text-gray-500 mt-1">
-              Faça login para acessar o conteúdo desta aula.
-            </p>
-            <div className="mt-4 flex gap-3">
-              <a
-                href={`/login?callback=${callback}`}
-                className="rounded-lg bg-black px-4 py-2 text-white"
-              >
-                Fazer login
-              </a>
-              <Link href={`/unlock/${slug}`} className="rounded-lg border px-4 py-2">
-                Desbloquear curso
-              </Link>
-            </div>
-          </div>
-
-          <div className="mt-6">
-            <Link href={`/c/${slug}`} className="underline">
-              Voltar para o curso
-            </Link>
-          </div>
-        </div>
-      </main>
+      <section className="p-6">
+        <h1 className="text-lg font-semibold">Unidade não encontrada.</h1>
+      </section>
     );
   }
 
-  const userId = (session.user as any)?.id;
-  if (typeof userId !== "string" || !userId) {
-    const callback = encodeURIComponent(`/c/${slug}/${module}/${unit}`);
-    return (
-      <main className="min-h-dvh p-6 md:p-10">
-        <div className="mx-auto max-w-3xl">
-          <h1 className="text-2xl md:text-3xl font-bold">{course.title}</h1>
-          <p className="text-sm text-gray-500 mt-2">
-            Módulo: {mod.title} - Aula: {unitRec.title}
-          </p>
-          <div className="mt-6 rounded-xl border p-4">
-            <div className="font-medium">Sessão inválida</div>
-            <p className="text-sm text-gray-500 mt-1">
-              Faça login novamente para continuar.
-            </p>
-            <div className="mt-4">
-              <a
-                href={`/login?callback=${callback}`}
-                className="rounded-lg bg-black px-4 py-2 text-white"
-              >
-                Fazer login
-              </a>
-            </div>
-          </div>
-        </div>
-      </main>
-    );
-  }
+  // tipo (rótulo)
+  const unitTypeLabel = unit.isExtra ? "Extra" : unit.isOptional ? "Opcional" : "Obrigatória";
+  const unitXP = unit.xpValue ?? 30;
 
-  const enrolled = await prisma.userCourse.findUnique({
-    where: { userId_courseId: { userId, courseId: course.id } },
-    select: { id: true },
-  });
-
-  if (!enrolled) {
-    return (
-      <main className="min-h-dvh p-6 md:p-10">
-        <div className="mx-auto max-w-3xl">
-          <h1 className="text-2xl md:text-3xl font-bold">{course.title}</h1>
-          <p className="text-sm text-gray-500 mt-2">
-            Módulo: {mod.title} - Aula: {unitRec.title}
-          </p>
-
-          <div className="mt-6 rounded-xl border p-4">
-            <div className="font-medium">Curso bloqueado para sua conta</div>
-            <p className="text-sm text-gray-500 mt-1">
-              Use o código da sua box para desbloquear este curso.
-            </p>
-            <div className="mt-4">
-              <Link
-                href={`/unlock/${slug}`}
-                className="rounded-lg bg-black px-4 py-2 text-white"
-              >
-                Ir para desbloqueio
-              </Link>
-            </div>
-          </div>
-
-          <div className="mt-6">
-            <Link href={`/c/${slug}`} className="underline">
-              Voltar para o curso
-            </Link>
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  // 5) Gate sequencial: se a unit exige anterior, checa a imediatamente anterior do mesmo módulo
-  if (unitRec.requiresCompletedPrevious) {
-    const prevUnit = await prisma.unit.findFirst({
-      where: { moduleId: mod.id, sortIndex: { lt: unitRec.sortIndex } },
-      orderBy: { sortIndex: "desc" },
-      select: { id: true, slug: true, title: true },
+  // progresso do usuário (se logado)
+  let initialCompleted = false;
+  if (userId) {
+    const prog = await prisma.userUnitProgress.findUnique({
+      where: { userId_unitId: { userId, unitId: unit.id } },
+      select: { status: true, completedAt: true },
     });
-
-    if (prevUnit) {
-      const prevCompleted = await prisma.userUnitProgress.findUnique({
-        where: { userId_unitId: { userId, unitId: prevUnit.id } },
-        select: { status: true },
-      });
-
-      if (prevCompleted?.status !== "COMPLETED") {
-        // bloqueia acesso e sugere a aula anterior
-        return (
-          <main className="min-h-dvh p-6 md:p-10">
-            <div className="mx-auto max-w-3xl">
-              <h1 className="text-2xl md:text-3xl font-bold">{course.title}</h1>
-              <p className="text-sm text-gray-500 mt-2">
-                Módulo: {mod.title} - Aula: {unitRec.title}
-              </p>
-
-              <div className="mt-6 rounded-xl border p-4 bg-yellow-50">
-                <div className="font-medium">Esta aula está bloqueada</div>
-                <p className="text-sm text-gray-700 mt-1">
-                  Para acessar, conclua antes: <strong>{prevUnit.title}</strong>.
-                </p>
-                <div className="mt-4">
-                  <Link
-                    href={`/c/${slug}/${module}/${prevUnit.slug}`}
-                    className="rounded-lg bg-black px-4 py-2 text-white"
-                  >
-                    Ir para a aula anterior
-                  </Link>
-                </div>
-              </div>
-
-              <div className="mt-6">
-                <Link href={`/c/${slug}`} className="underline">
-                  Voltar para o curso
-                </Link>
-              </div>
-            </div>
-          </main>          
-        );
-      }
-    }
-  }
-
-  // 6) Progresso do curso para exibir barra na página da aula
-  const [completedCount, totalUnits] = await Promise.all([
-    prisma.userUnitProgress.count({
-      where: {
-        userId,
-        status: "COMPLETED",
-        unit: { module: { courseId: course.id } },
-      },
-    }),
-    prisma.unit.count({
-      where: { module: { courseId: course.id } },
-    }),
-  ]);
-  const pct = totalUnits > 0 ? Math.round((completedCount / totalUnits) * 100) : 0;
-
-  // 7) Conteúdo da unit — tipamos explicitamente como non-null
-  function UnitBody({ unit: u }: { unit: NonNullable<typeof unitRec> }) {
-    if (u.type === "VIDEO" && u.youtubeId) {
-      return (
-        <div className="mt-4 aspect-video w-full overflow-hidden rounded-xl border">
-          <iframe
-            className="h-full w-full"
-            src={`https://www.youtube.com/embed/${u.youtubeId}`}
-            title={u.title}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            referrerPolicy="strict-origin-when-cross-origin"
-            allowFullScreen
-          />
-        </div>
-      );
-    }
-
-    if (u.type === "DOC" && u.driveFileId) {
-      return (
-        <div className="mt-4 aspect-video w-full overflow-hidden rounded-xl border">
-          <iframe
-            className="h-full w-full"
-            src={`https://drive.google.com/file/d/${u.driveFileId}/preview`}
-            title={u.title}
-            allow="fullscreen"
-          />
-        </div>
-      );
-    }
-
-    if (u.type === "LINK" && u.url) {
-      return (
-        <div className="mt-4 rounded-xl border p-4">
-          <a
-            href={u.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline font-medium"
-          >
-            Abrir recurso externo
-          </a>
-        </div>
-      );
-    }
-
-    return (
-      <div className="mt-4 rounded-xl border p-4 text-sm text-gray-500">
-        Conteúdo não configurado para esta aula.
-      </div>
-    );
+    initialCompleted = Boolean(prog?.completedAt && prog?.status === "COMPLETED");
   }
 
   return (
-    <main className="min-h-dvh p-6 md:p-10">
-      <div className="mx-auto max-w-4xl">
-        <div className="text-sm text-gray-500">
-          <Link href={`/c/${slug}`} className="underline">
-            {course.title}
-          </Link>{" "}
-          / {mod.title}
-        </div>
-        <h1 className="text-2xl md:text-3xl font-bold mt-1">{unitRec.title}</h1>
-
-        {/* Barra de progresso do curso (topo da Unit) */}
-        <div className="mt-3">
-          <div className="flex justify-between text-xs mb-1">
-            <span>Progresso do curso</span>
-            <span>{pct}%</span>
-          </div>
-          <div className="h-2 w-full rounded-full bg-gray-200">
-            <div
-              className="h-2 rounded-full bg-black transition-[width] duration-500"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-          <div className="mt-1 text-xs text-gray-500">
-            {completedCount} de {totalUnits} aulas concluídas
-          </div>
-        </div>
-
-        <UnitBody unit={unitRec} />
-
-        {/* Progresso da aula: inicia automático e botão para concluir */}
-        <UnitProgressClient unitId={unitRec.id} />
-
-        <div className="mt-6 text-sm text-gray-500">
-          {unitRec.durationSec
-            ? `${Math.round(unitRec.durationSec / 60)} min`
-            : "Sem duração definida"}
-          {" · "}
-          {unitRec.requiresCompletedPrevious ? "Sequencial" : "Livre"}
-        </div>
-      </div>
-    </main>
+    <section className="p-4 sm:p-6 text-neutral-900">
+      <UnitClient
+        courseSlug={unit.module.course.slug}
+        moduleSlug={unit.module.slug}
+        unit={{
+          id: unit.id,
+          slug: unit.slug,
+          title: unit.title,
+          description: unit.description ?? "",
+          youtubeId: unit.youtubeId,
+          thresholdPct: unit.thresholdPct ?? 85,
+          unitTypeLabel,
+          unitXP,
+        }}
+        initialCompleted={initialCompleted}
+      />
+    </section>
   );
 }
