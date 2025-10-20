@@ -4,15 +4,12 @@ import UnitClient from "./UnitClient";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
-// resolve prisma independente do export
 const prisma =
   (database as any).prisma ??
   (database as any).db ??
   (database as any).default;
 
-type Props = {
-  params: { slug: string; module: string; unit: string };
-};
+type Props = { params: { slug: string; module: string; unit: string } };
 
 export default async function UnitPage({ params }: Props) {
   const { slug: courseSlug, module: moduleSlug, unit: unitSlug } = params;
@@ -20,52 +17,33 @@ export default async function UnitPage({ params }: Props) {
   const session: any = await getServerSession(authOptions as any);
   const userId: string | undefined = session?.user?.id;
 
-  // Busca a unidade + títulos do curso e do módulo
   const unit = await prisma.unit.findFirst({
-    where: {
-      slug: unitSlug,
-      module: { slug: moduleSlug, course: { slug: courseSlug } },
-    },
+    where: { slug: unitSlug, module: { slug: moduleSlug, course: { slug: courseSlug } } },
     select: {
-      id: true,
-      slug: true,
-      title: true,
-      description: true,
-      youtubeId: true,
-      thresholdPct: true,
-      xpValue: true,
-      isOptional: true,
-      isExtra: true,
-      module: {
-        select: {
-          id: true,
-          slug: true,
-          title: true, // << título do módulo
-          course: { select: { slug: true, title: true } }, // << título do curso
-        },
-      },
+      id: true, slug: true, title: true, description: true,
+      youtubeId: true, thresholdPct: true, xpValue: true,
+      isOptional: true, isExtra: true,
+      module: { select: { slug: true, title: true, course: { select: { slug: true, title: true } } } },
     },
   });
 
   if (!unit) {
-    return (
-      <section className="p-6">
-        <h1 className="text-lg font-semibold">Unidade não encontrada.</h1>
-      </section>
-    );
+    return <section className="p-6"><h1 className="text-lg font-semibold">Unidade não encontrada.</h1></section>;
   }
 
   const unitTypeLabel = unit.isExtra ? "Extra" : unit.isOptional ? "Opcional" : "Obrigatória";
   const unitXP = unit.xpValue ?? 30;
 
-  // Progresso inicial do usuário (para abrir já marcada como concluída, se for o caso)
+  // progresso inicial do usuário (para abrir corretamente)
   let initialCompleted = false;
+  let initialWatchedPct = 0;
   if (userId) {
     const prog = await prisma.userUnitProgress.findUnique({
       where: { userId_unitId: { userId, unitId: unit.id } },
-      select: { status: true, completedAt: true },
+      select: { status: true, completedAt: true, watchedPct: true },
     });
     initialCompleted = Boolean(prog?.completedAt && prog?.status === "COMPLETED");
+    initialWatchedPct = Math.max(0, Math.min(100, prog?.watchedPct ?? 0));
   }
 
   return (
@@ -82,11 +60,11 @@ export default async function UnitPage({ params }: Props) {
           thresholdPct: unit.thresholdPct ?? 85,
           unitTypeLabel,
           unitXP,
-          // >>> títulos vindos do banco
           courseTitle: unit.module.course.title,
           moduleTitle: unit.module.title,
         }}
         initialCompleted={initialCompleted}
+        initialWatchedPct={initialWatchedPct}
       />
     </section>
   );

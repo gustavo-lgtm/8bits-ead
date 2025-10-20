@@ -1,37 +1,33 @@
 // app/api/units/complete/route.ts
-import { NextResponse } from "next/server";
-import * as database from "@/lib/db"; // funciona se você exportar prisma, db ou default
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth"; // ajuste o caminho se o seu auth estiver em outro lugar
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-// Resolve o client do Prisma, independente do nome de export que você usa em "@/lib/db"
+import { NextResponse } from "next/server";
+import * as database from "@/lib/db";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { Prisma, XPType } from "@prisma/client";
+
 const prisma =
   (database as any).prisma ??
   (database as any).db ??
   (database as any).default;
 
 export async function POST(req: Request) {
-  // Tipagem flexível para não reclamar de session.user
   const session: any = await getServerSession(authOptions as any);
   const userId: string | undefined = session?.user?.id;
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  let body: any = {};
+  let body: unknown;
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
+  const unitId = (body as any)?.unitId as string | undefined;
+  if (!unitId) return NextResponse.json({ error: "unitId is required" }, { status: 400 });
 
-  const unitId: string | undefined = body?.unitId;
-  if (!unitId) {
-    return NextResponse.json({ error: "unitId is required" }, { status: 400 });
-  }
-
-  // Busca a unidade e relações mínimas
+  // Unidade + módulo/curso (para próxima unidade e saldo do curso)
   const unit = await prisma.unit.findUnique({
     where: { id: unitId },
     select: {
@@ -48,142 +44,121 @@ export async function POST(req: Request) {
           id: true,
           slug: true,
           courseId: true,
-          course: { select: { id: true, slug: true } },
+          units: { select: { id: true, slug: true, sortIndex: true } },
         },
       },
     },
   });
-
-  if (!unit) {
-    return NextResponse.json({ error: "Unit not found" }, { status: 404 });
-  }
+  if (!unit) return NextResponse.json({ error: "Unit not found" }, { status: 404 });
 
   const courseId = unit.module.courseId;
-  const moduleId = unit.module.id;
+  const unitXP: number = typeof unit.xpValue === "number" ? unit.xpValue : 30;
+  const xpType: XPType = unit.isOptional ? "OPTIONAL" : unit.isExtra ? "EXTRA" : "MANDATORY";
 
-  // Próxima unidade (no mesmo módulo, por sortIndex)
-  const nextUnit = await prisma.unit.findFirst({
-    where: { moduleId: unit.moduleId, sortIndex: { gt: unit.sortIndex } },
-    orderBy: { sortIndex: "asc" },
-    select: { slug: true },
-  });
-  const nextUnitSlug = nextUnit?.slug ?? null;
-
-  // Idempotência por user+unit
-  const existing = await prisma.userUnitProgress.findUnique({
+  // Idempotência: já concluída?
+  const already = await prisma.userUnitProgress.findUnique({
     where: { userId_unitId: { userId, unitId: unit.id } },
     select: { completedAt: true },
   });
-
-  if (existing?.completedAt) {
-    // Já concluída - não duplica XP
-    return NextResponse.json({ awardedXp: 0, nextUnitSlug, streakDelta: 0 });
+  if (already?.completedAt) {
+    return NextResponse.json({ awardedXp: 0, nextUnitSlug: nextSlug(unit), streakDelta: 0 });
   }
 
-  // XP da unidade: usa xpValue (default 30, já garantido no schema)
-  const awardedXp = unit.xpValue ?? 30;
-
-  // Define tipo de XP conforme suas flags
-  // (usando strings para evitar importar enums se der conflito de tipos)
-  const xpType =
-    unit.isExtra ? "EXTRA" : unit.isOptional ? "OPTIONAL" : "MANDATORY";
-
-  // Marca conclusão em UserUnitProgress
   const now = new Date();
-  await prisma.userUnitProgress.upsert({
-    where: { userId_unitId: { userId, unitId: unit.id } },
-    update: {
-      status: "COMPLETED",
-      completedAt: now,
-      lastViewedAt: now,
-    },
-    create: {
-      userId,
-      unitId: unit.id,
-      status: "COMPLETED",
-      completedAt: now,
-      lastViewedAt: now,
-    },
-  });
+  const eventType = `unit_completed:${unit.id}`; // idempotente por unidade dentro do curso
 
-  // Cria evento de XP - idempotência garantida pelo @@unique no schema
   try {
-    await prisma.userXPEvent.create({
-      data: {
-        userId,
-        courseId,
-        moduleId,
-        unitId: unit.id,
-        eventType: "unit_completed",
-        xp: awardedXp,
-        xpType, // "MANDATORY" | "EXTRA" | "OPTIONAL"
-        meta: { unitSlug: unit.slug, unitTitle: unit.title },
-      },
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      // 1) Marca COMPLETED
+      await tx.userUnitProgress.upsert({
+        where: { userId_unitId: { userId, unitId: unit.id } },
+        update: { status: "COMPLETED", completedAt: now, lastViewedAt: now },
+        create: { userId, unitId: unit.id, status: "COMPLETED", completedAt: now, lastViewedAt: now },
+      });
+
+      // 2) Evento de UNIDADE:
+      //    - courseId OBRIGATÓRIO (seu schema exige)
+      //    - moduleId OMITIDO (null) para não colidir com UNIQUE de módulo
+      //    - eventType com sufixo da unidade para não colidir com UNIQUE de curso
+      try {
+        await tx.userXPEvent.create({
+          data: {
+            userId,
+            courseId,              // obrigatório no seu schema
+            // moduleId: unit.moduleId, // <- NÃO preencher em evento de unidade
+            unitId: unit.id,
+            eventType,             // ex.: "unit_completed:<unitId>"
+            xp: unitXP,
+            xpType,
+            meta: { unitSlug: unit.slug, unitTitle: unit.title },
+          },
+        });
+      } catch (err) {
+        // P2002: já existe (idempotência por algum UNIQUE) — ignora
+        if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002")) {
+          throw err;
+        }
+      }
+
+      // 3) Recalcula saldos do curso (soma eventos do curso em qualquer escopo)
+      type EventRow = { xp: number; xpType: XPType };
+      const events = (await tx.userXPEvent.findMany({
+        where: {
+          userId,
+          OR: [
+            { courseId },                        // alvo curso
+            { module: { courseId } },            // alvo módulo
+            { unit: { module: { courseId } } },  // alvo unidade
+          ],
+        },
+        select: { xp: true, xpType: true },
+      })) as EventRow[];
+
+      const sum: Record<XPType, number> = {
+        MANDATORY: 0,
+        EXTRA: 0,
+        OPTIONAL: 0,
+        BONUS: 0,
+        WELCOME: 0,
+      };
+      for (const e of events) sum[e.xpType] += e.xp;
+
+      const cfg = await tx.courseGamificationConfig.findUnique({
+        where: { courseId },
+        select: { countExtraInPrimary: true, xpWelcome: true },
+      });
+      const countExtra = cfg?.countExtraInPrimary ?? true;
+
+      const xpMandatory = sum.MANDATORY | 0;
+      const xpExtra     = sum.EXTRA     | 0;
+      const xpOptional  = sum.OPTIONAL  | 0;
+      const xpBonus     = sum.BONUS     | 0;
+      const xpWelcome   = sum.WELCOME   | 0;
+
+      const xpPrimary = xpMandatory + (countExtra ? xpExtra : 0) + xpBonus + xpWelcome;
+      const xpTotal   = xpPrimary + xpOptional;
+
+      await tx.userXPBalance.upsert({
+        where: { userId_courseId: { userId, courseId } },
+        update: { xpMandatory, xpExtra, xpOptional, xpBonus, xpWelcome, xpPrimary, xpTotal },
+        create: { userId, courseId, xpMandatory, xpExtra, xpOptional, xpBonus, xpWelcome, xpPrimary, xpTotal },
+      });
     });
-  } catch {
-    // Se já existe, ignoramos para não quebrar idempotência
+  } catch (e) {
+    console.error("units/complete error", e);
+    return NextResponse.json({ error: "Failed to complete unit" }, { status: 500 });
   }
 
-  // Recalcula os saldos materializados
-  await upsertAndRecalcBalances(prisma, userId, courseId);
-
-  // Streak diário - placeholder neutro por enquanto
-  const streakDelta = 0;
-
-  return NextResponse.json({ awardedXp, nextUnitSlug, streakDelta });
+  return NextResponse.json({ awardedXp: unitXP, nextUnitSlug: nextSlug(unit), streakDelta: 0 });
 }
 
-// Soma eventos por tipo e atualiza UserXPBalance
-async function upsertAndRecalcBalances(
-  prisma: any,
-  userId: string,
-  courseId: string
-) {
-  const events: Array<{ xp: number; xpType: string }> =
-    await prisma.userXPEvent.findMany({
-      where: { userId, courseId },
-      select: { xp: true, xpType: true },
-    });
-
-  let xpMandatory = 0,
-    xpExtra = 0,
-    xpOptional = 0,
-    xpBonus = 0,
-    xpWelcome = 0;
-
-  for (const e of events) {
-    if (e.xpType === "MANDATORY") xpMandatory += e.xp;
-    else if (e.xpType === "EXTRA") xpExtra += e.xp;
-    else if (e.xpType === "OPTIONAL") xpOptional += e.xp;
-    else if (e.xpType === "BONUS") xpBonus += e.xp;
-    else if (e.xpType === "WELCOME") xpWelcome += e.xp;
-  }
-
-  // Regra simples: primary = mandatory + extra + bonus; total = primary + optional + welcome
-  const xpPrimary = xpMandatory + xpExtra + xpBonus;
-  const xpTotal = xpPrimary + xpOptional + xpWelcome;
-
-  await prisma.userXPBalance.upsert({
-    where: { userId_courseId: { userId, courseId } },
-    update: {
-      xpMandatory,
-      xpExtra,
-      xpOptional,
-      xpBonus,
-      xpWelcome,
-      xpPrimary,
-      xpTotal,
-    },
-    create: {
-      userId,
-      courseId,
-      xpMandatory,
-      xpExtra,
-      xpOptional,
-      xpBonus,
-      xpWelcome,
-      xpPrimary,
-      xpTotal,
-    },
-  });
+function nextSlug(unit: {
+  id: string;
+  sortIndex: number;
+  module: { units: { id: string; slug: string; sortIndex: number }[] };
+}) {
+  const list = unit.module.units ?? [];
+  const sorted = [...list].sort((a, b) => a.sortIndex - b.sortIndex);
+  const i = sorted.findIndex((u) => u.id === unit.id);
+  return i >= 0 && i + 1 < sorted.length ? sorted[i + 1].slug : null;
 }

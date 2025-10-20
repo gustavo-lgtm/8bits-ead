@@ -33,9 +33,6 @@ export async function POST(req: Request) {
   const isCompleted = Boolean(prog?.completedAt && prog?.status === "COMPLETED");
   const unitXP = unit.xpValue ?? 30;
 
-  // Se quiser devolver awardedXp real por eventos, busque o event:
-  // const evt = await prisma.userXPEvent.findUnique({ where: { userId_unitId_eventType: { ... } } });
-
   return NextResponse.json({
     isCompleted,
     watchedPct: prog?.watchedPct ?? 0,

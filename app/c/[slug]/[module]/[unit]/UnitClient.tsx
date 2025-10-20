@@ -1,3 +1,4 @@
+// app/c/[slug]/[module]/[unit]/UnitClient.tsx
 "use client";
 
 import Link from "next/link";
@@ -25,6 +26,7 @@ type UnitClientProps = {
     courseTitle?: string;
   };
   initialCompleted?: boolean;
+  initialWatchedPct?: number;
 };
 
 export default function UnitClient({
@@ -32,21 +34,27 @@ export default function UnitClient({
   moduleSlug,
   unit,
   initialCompleted = false,
+  initialWatchedPct = 0,
 }: UnitClientProps) {
-  const [watchedPct, setWatchedPct] = useState(0);
-  const [canComplete, setCanComplete] = useState<boolean>(false);
+  // estados baseados em dados iniciais
   const [isCompleted, setIsCompleted] = useState(initialCompleted);
+  const [watchedPct, setWatchedPct] = useState(initialWatchedPct);
+  const [canComplete, setCanComplete] = useState<boolean>(
+    initialCompleted || initialWatchedPct >= unit.thresholdPct
+  );
   const [isCompleting, setIsCompleting] = useState(false);
 
   const [popupOpen, setPopupOpen] = useState(false);
   const [awardedXp, setAwardedXp] = useState(initialCompleted ? unit.unitXP : 0);
   const [nextUnitSlug, setNextUnitSlug] = useState<string | null>(null);
 
+  // debounce para salvar progresso
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSentRef = useRef({ sec: 0, pct: 0 });
 
   const backHref = useMemo(() => `/c/${courseSlug}/${moduleSlug}`, [courseSlug, moduleSlug]);
 
+  // 1) Garantir persistência ao montar: consulta /status
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -59,29 +67,37 @@ export default function UnitClient({
         if (!res.ok) return;
         const data: { isCompleted: boolean; watchedPct: number; unitXP: number } = await res.json();
         if (ignore) return;
+
+        const pct = Math.max(0, Math.min(100, data.watchedPct ?? 0));
+        setWatchedPct(pct);
         setIsCompleted(data.isCompleted);
-        setWatchedPct(data.watchedPct);
-        setCanComplete(data.isCompleted || data.watchedPct >= unit.thresholdPct);
+        setCanComplete(data.isCompleted || pct >= unit.thresholdPct);
         setAwardedXp(data.isCompleted ? unit.unitXP : 0);
       } catch {
-        setCanComplete(initialCompleted);
+        // mantém estados iniciais
       }
     })();
-    return () => {
-      ignore = true;
-    };
-  }, [unit.id, unit.thresholdPct, initialCompleted]);
+    return () => { ignore = true; };
+  }, [unit.id, unit.thresholdPct, unit.unitXP]);
 
+  // 2) Tracking do vídeo → habilita só ao atingir o threshold
   const onProgress = useCallback(
     (sec: number, pct: number) => {
-      setWatchedPct(pct);
-      if (!isCompleted && pct >= unit.thresholdPct) setCanComplete(true);
+      if (isCompleted) return; // nada a fazer
+      const pctClamped = Math.max(0, Math.min(100, pct));
+      setWatchedPct(pctClamped);
 
+      // habilita apenas quando cruza o threshold
+      if (!canComplete && pctClamped >= unit.thresholdPct) {
+        setCanComplete(true);
+      }
+
+      // salva progresso (throttle/debounce)
       const secDelta = Math.floor(sec) - Math.floor(lastSentRef.current.sec);
-      const pctDelta = pct - lastSentRef.current.pct;
+      const pctDelta = pctClamped - lastSentRef.current.pct;
       if (secDelta < 1 && pctDelta < 0.5) return;
 
-      lastSentRef.current = { sec, pct };
+      lastSentRef.current = { sec, pct: pctClamped };
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = setTimeout(async () => {
         try {
@@ -91,15 +107,16 @@ export default function UnitClient({
             body: JSON.stringify({
               unitId: unit.id,
               watchedSeconds: Math.floor(sec),
-              watchedPct: pct,
+              watchedPct: pctClamped,
             }),
           });
         } catch {}
       }, 400);
     },
-    [isCompleted, unit.id, unit.thresholdPct]
+    [canComplete, isCompleted, unit.id, unit.thresholdPct]
   );
 
+  // 3) Conclusão — marca COMPLETED + XP + popup
   const onClickComplete = useCallback(async () => {
     if (!canComplete || isCompleting || isCompleted) return;
     setIsCompleting(true);
@@ -109,16 +126,15 @@ export default function UnitClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ unitId: unit.id }),
       });
-      if (!res.ok) {
-        setIsCompleting(false);
-        return;
-      }
+      if (!res.ok) { setIsCompleting(false); return; }
       const data: { awardedXp: number; nextUnitSlug: string | null } = await res.json();
+
       const xpToShow = data.awardedXp && data.awardedXp > 0 ? data.awardedXp : unit.unitXP;
       setAwardedXp(xpToShow);
       setNextUnitSlug(data.nextUnitSlug ?? unit.slug);
-      setPopupOpen(true);
+
       setIsCompleted(true);
+      setPopupOpen(true);
     } catch {
       setIsCompleting(false);
     }
@@ -181,7 +197,8 @@ export default function UnitClient({
               youtubeId={unit.youtubeId}
               thresholdPct={unit.thresholdPct}
               onProgress={onProgress}
-              onThresholdReached={() => setCanComplete(true)}
+              // não habilita por aqui; quem manda é onProgress
+              onThresholdReached={() => {}}
               className="bg-transparent"
             />
           </div>
@@ -208,6 +225,7 @@ export default function UnitClient({
                   backgroundColor: canComplete ? BRAND : "#e5e7eb",
                   color: canComplete ? "#ffffff" : "#9ca3af",
                 }}
+                aria-disabled={!canComplete || isCompleting}
               >
                 {canComplete && <Check size={18} color="#ffffff" />}
                 Concluir unidade

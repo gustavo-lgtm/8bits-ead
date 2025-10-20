@@ -22,6 +22,8 @@ type ModuleItem = {
   completedRequiredUnits: number;
   totalExtraUnits: number;
   completedExtraUnits: number;
+  totalOptionalUnits: number;
+  completedOptionalUnits: number;
 };
 
 export type ModulesPageData = {
@@ -65,13 +67,13 @@ export async function getModulesPageData(userId: string, courseSlug: string): Pr
       slug: true,
       title: true,
       description: true,
-      posterUrl: true, // 🔹 agora vem do banco
+      posterUrl: true, // 16:9 do card
     },
   });
 
-  // Para cada módulo, computar targets de XP e saldos do aluno por XPEvent
   const modules: ModuleItem[] = [];
   for (const m of rawModules) {
+    // --- units por tipo (para targets e totais) ---
     const [requiredUnits, extraUnits, optionalUnits] = await Promise.all([
       prisma.unit.findMany({
         where: { moduleId: m.id, isOptional: false, isExtra: false },
@@ -94,27 +96,47 @@ export async function getModulesPageData(userId: string, courseSlug: string): Pr
     const xpTargetPrimary = requiredCap + (countExtraInPrimary ? extraCap : 0);
     const xpTargetOptional = optionalCap;
 
-    // Somas por eventos de XP no escopo do módulo (enum, não string)
-    const events = await prisma.userXPEvent.groupBy({
-      by: ["xpType"],
-      where: { userId, courseId: course.id, moduleId: m.id },
-      _sum: { xp: true },
+    // --- XP somado por eventos dentro do MÓDULO ---
+    // Importante: eventos de unidade agora têm courseId e unitId (moduleId pode ser null).
+    // Por isso, somamos eventos onde (moduleId = m.id) OU (unit.moduleId = m.id).
+    const events = await prisma.userXPEvent.findMany({
+      where: {
+        userId,
+        OR: [
+          { moduleId: m.id }, // eventos "de módulo"
+          { unit: { moduleId: m.id } }, // eventos "de unidade" deste módulo
+        ],
+      },
+      select: { xp: true, xpType: true },
     });
-    const sum = (typ: XPType) => events.find((e) => e.xpType === typ)?._sum.xp ?? 0;
 
-    const xpMandatory = sum(XPType.MANDATORY);
-    const xpExtra = sum(XPType.EXTRA);
-    const xpOptional = sum(XPType.OPTIONAL);
+    const sumByType: Record<XPType, number> = {
+      MANDATORY: 0,
+      EXTRA: 0,
+      OPTIONAL: 0,
+      BONUS: 0,
+      WELCOME: 0,
+    };
+    for (const e of events) {
+      sumByType[e.xpType] += e.xp;
+    }
+
+    const xpMandatory = sumByType.MANDATORY;
+    const xpExtra = sumByType.EXTRA;
+    const xpOptional = sumByType.OPTIONAL;
 
     const xpPrimary = xpMandatory + (countExtraInPrimary ? xpExtra : 0);
 
-    // Concluídas (progress)
-    const [completedRequiredUnits, completedExtraUnits] = await Promise.all([
+    // --- Concluídas (progress) ---
+    const [completedRequiredUnits, completedExtraUnits, completedOptionalUnits] = await Promise.all([
       prisma.userUnitProgress.count({
         where: { userId, status: "COMPLETED", unit: { moduleId: m.id, isOptional: false, isExtra: false } },
       }),
       prisma.userUnitProgress.count({
         where: { userId, status: "COMPLETED", unit: { moduleId: m.id, isOptional: false, isExtra: true } },
+      }),
+      prisma.userUnitProgress.count({
+        where: { userId, status: "COMPLETED", unit: { moduleId: m.id, isOptional: true } },
       }),
     ]);
 
@@ -125,14 +147,20 @@ export async function getModulesPageData(userId: string, courseSlug: string): Pr
       description: m.description ?? "",
       // usa o banco; se vazio, cai para arquivo em /public/images/modules/<slug>.jpg
       posterUrl: m.posterUrl ?? `/images/modules/${m.slug}.jpg`,
+
       xpPrimary,
       xpOptional,
       xpTargetPrimary,
       xpTargetOptional,
+
       totalRequiredUnits: requiredUnits.length,
       completedRequiredUnits,
+
       totalExtraUnits: extraUnits.length,
       completedExtraUnits,
+
+      totalOptionalUnits: optionalUnits.length,
+      completedOptionalUnits,
     });
   }
 

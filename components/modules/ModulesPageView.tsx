@@ -1,9 +1,9 @@
 // components/modules/ModulesPageView.tsx
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Stars } from "lucide-react";
+import { CheckCircle2, Stars, CircleDashed } from "lucide-react";
 import type { ModulesPageData } from "@/lib/modulesData";
 
 const BRAND = "#ffab40";
@@ -17,37 +17,44 @@ export default function ModulesPageView({ data }: { data: ModulesPageData }) {
   const modules = data.modules;
   const selected = modules[index];
 
+  // ----- flags do módulo selecionado -----
+  const sel: any = selected as any;
   const hasConcluido =
     selected.totalRequiredUnits > 0 &&
     selected.completedRequiredUnits >= selected.totalRequiredUnits;
-  const hasExtras =
-    selected.totalExtraUnits > 0 &&
-    selected.completedExtraUnits >= selected.totalExtraUnits;
 
-  // carrossel sem setas (auto-scroll nos cantos)
-    const stripRef = useRef<HTMLDivElement>(null);
-    const edgeDirRef = useRef<(-1 | 0 | 1)>(0);
-    const rafRef = useRef<number | null>(null);
+  const hasAnyExtras = (sel.totalExtraUnits ?? 0) > 0;
+  const hasExtrasDone =
+    (sel.totalExtraUnits ?? 0) > 0 &&
+    (sel.completedExtraUnits ?? 0) >= (sel.totalExtraUnits ?? 0);
 
-    useEffect(() => {
+  const hasAnyOptional = (sel.totalOptionalUnits ?? 0) > 0;
+  const hasOptionalDone =
+    (sel.totalOptionalUnits ?? 0) > 0 &&
+    (sel.completedOptionalUnits ?? 0) >= (sel.totalOptionalUnits ?? 0);
+
+  // ----- carrossel sem setas (auto-scroll nos cantos) -----
+  const stripRef = useRef<HTMLDivElement>(null);
+  const edgeDirRef = useRef<(-1 | 0 | 1)>(0);
+  const rafRef = useRef<number | null>(null);
+
+  useEffect(() => {
     const step = () => {
-        const el = stripRef.current;
-        if (el && edgeDirRef.current !== 0) {
+      const el = stripRef.current;
+      if (el && edgeDirRef.current !== 0) {
         el.scrollLeft += edgeDirRef.current * 6;
-        }
-        rafRef.current = requestAnimationFrame(step);
+      }
+      rafRef.current = requestAnimationFrame(step);
     };
 
     rafRef.current = requestAnimationFrame(step);
-
     return () => {
-        if (rafRef.current !== null) {
+      if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
-        }
+      }
     };
-    }, []);
-
+  }, []);
 
   const onMouseMoveStrip = (e: React.MouseEvent<HTMLDivElement>) => {
     const el = stripRef.current;
@@ -109,7 +116,7 @@ export default function ModulesPageView({ data }: { data: ModulesPageData }) {
           </div>
         </div>
 
-        {/* badges do módulo */}
+        {/* conquistas do módulo */}
         <div className="mt-3 rounded-2xl border border-neutral-300 bg-white p-3 shadow-lg">
           <div className="text-xs text-neutral-500 mb-2">Conquistas do módulo</div>
           <div className="flex flex-wrap items-center gap-6">
@@ -120,13 +127,26 @@ export default function ModulesPageView({ data }: { data: ModulesPageData }) {
               />
               <span>Módulo Concluído</span>
             </div>
-            <div className="flex items-center gap-2">
-              <Stars
-                className={`h-5 w-5 ${hasExtras ? "" : "text-neutral-400"}`}
-                style={hasExtras ? { color: "#0ea5e9" } : {}}
-              />
-              <span>Extras</span>
-            </div>
+
+            {hasAnyExtras && (
+              <div className="flex items-center gap-2">
+                <Stars
+                  className={`h-5 w-5 ${hasExtrasDone ? "" : "text-neutral-400"}`}
+                  style={hasExtrasDone ? { color: "#0ea5e9" } : {}}
+                />
+                <span>Extras</span>
+              </div>
+            )}
+
+            {hasAnyOptional && (
+              <div className="flex items-center gap-2">
+                <CircleDashed
+                  className={`h-5 w-5 ${hasOptionalDone ? "" : "text-neutral-400"}`}
+                  style={hasOptionalDone ? { color: "#10b981" } : {}}
+                />
+                <span>Opcionais</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -156,41 +176,53 @@ export default function ModulesPageView({ data }: { data: ModulesPageData }) {
           className="flex gap-4 overflow-x-auto pb-2 scroll-smooth"
         >
           {modules.map((m, i) => {
+            const mAny: any = m as any;
+
             const active = i === index;
             const p = pct(m.xpPrimary, m.xpTargetPrimary);
+
             const concl =
               m.totalRequiredUnits > 0 &&
               m.completedRequiredUnits >= m.totalRequiredUnits;
-            const exts =
-              m.totalExtraUnits > 0 &&
-              m.completedExtraUnits >= m.totalExtraUnits;
+
+            const hasAnyExtrasCard = (mAny.totalExtraUnits ?? 0) > 0;
+            const extrasDone =
+              (mAny.totalExtraUnits ?? 0) > 0 &&
+              (mAny.completedExtraUnits ?? 0) >= (mAny.totalExtraUnits ?? 0);
+
+            const hasAnyOptionalCard = (mAny.totalOptionalUnits ?? 0) > 0;
+            const optionalDone =
+              (mAny.totalOptionalUnits ?? 0) > 0 &&
+              (mAny.completedOptionalUnits ?? 0) >= (mAny.totalOptionalUnits ?? 0);
 
             return (
               <button
                 key={m.id}
                 onClick={() => setIndex(i)}
                 className={`relative aspect-video w-[280px] shrink-0 overflow-hidden rounded-2xl border bg-white shadow transition cursor-pointer ${
-                  active ? "border-2" : "border"
+                  active ? "border-4" : "border"
                 }`}
-                style={active ? { borderColor: BRAND } : { borderColor: "#d4d4d8" }}
+                style={active ? { borderColor: "#bf4eda" } : { borderColor: "#d4d4d8" }}
+
                 title={m.title}
               >
                 {/* imagem */}
                 <div className="absolute inset-0 bg-neutral-100" />
                 {m.posterUrl ? (
-                <img
+                  <img
                     src={m.posterUrl}
                     alt=""
                     className="absolute inset-0 h-full w-full object-cover"
-                />
+                  />
                 ) : (
-                <div className="absolute inset-0 flex items-center justify-center text-sm text-neutral-400 bg-neutral-100">
+                  <div className="absolute inset-0 flex items-center justify-center text-sm text-neutral-400 bg-neutral-100">
                     sem imagem
-                </div>
+                  </div>
                 )}
 
                 {/* badges canto superior direito */}
                 <div className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 text-[11px] font-semibold shadow">
+                  {/* concluído */}
                   <span
                     className={`rounded-full px-1.5 py-0.5 ${
                       concl ? "bg-amber-100 text-amber-700" : "bg-neutral-100 text-neutral-400"
@@ -199,17 +231,33 @@ export default function ModulesPageView({ data }: { data: ModulesPageData }) {
                   >
                     ✓
                   </span>
-                  <span
-                    className={`rounded-full px-1.5 py-0.5 ${
-                      exts ? "bg-sky-100 text-sky-700" : "bg-neutral-100 text-neutral-400"
-                    }`}
-                    title="Extras concluídos"
-                  >
-                    ✦
-                  </span>
+
+                  {/* extra: só se existir */}
+                  {hasAnyExtrasCard && (
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 ${
+                        extrasDone ? "bg-sky-100 text-sky-700" : "bg-neutral-100 text-neutral-400"
+                      }`}
+                      title="Extras concluídos"
+                    >
+                      ✦
+                    </span>
+                  )}
+
+                  {/* opcional: só se existir */}
+                  {hasAnyOptionalCard && (
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 ${
+                        optionalDone ? "bg-emerald-100 text-emerald-700" : "bg-neutral-100 text-neutral-400"
+                      }`}
+                      title="Opcionais concluídos"
+                    >
+                      ○
+                    </span>
+                  )}
                 </div>
 
-                {/* Título branco (dentro da imagem) + barra */}
+                {/* Título branco + barra */}
                 <div className="absolute left-3 right-3 bottom-5">
                   <div
                     className="mb-1 text-[16px] md:text-[17px] font-semibold text-white pl-1.5 text-left"

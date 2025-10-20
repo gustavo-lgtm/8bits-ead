@@ -1,7 +1,6 @@
 // app/cursos/page.tsx
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import AppHeader from "@/components/AppHeader";
 import ProjectsNetflixRow from "@/components/projects/ProjectsNetflixRow";
 import { getProjectsRowItems } from "@/lib/projectsRows";
 
@@ -13,8 +12,7 @@ export default async function CoursesPage() {
 
   if (!userId) {
     return (
-      <>
-        <AppHeader />
+      <>        
         <main className="min-h-dvh bg-white text-neutral-900">
           <div className="mx-auto max-w-7xl px-6 py-10">
             <h1 className="text-2xl md:text-3xl font-bold">Meus projetos</h1>
@@ -39,8 +37,7 @@ export default async function CoursesPage() {
   const items = await getProjectsRowItems(userId);
 
   return (
-    <>
-      <AppHeader />
+    <>      
       <main className="min-h-dvh bg-white text-neutral-900">
         <div className="mx-auto max-w-7xl px-4 md:px-6 py-6 md:py-10">
           <h1 className="text-xl md:text-2xl font-bold mb-4">Meus projetos</h1>

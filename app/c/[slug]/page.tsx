@@ -1,7 +1,6 @@
 // app/c/[slug]/page.tsx
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import AppHeader from "@/components/AppHeader";
 import { getModulesPageData } from "@/lib/modulesData";
 import ModulesPageView from "@/components/modules/ModulesPageView";
 import { notFound } from "next/navigation";
@@ -19,8 +18,7 @@ export default async function CourseModulesPage({
 
   if (!userId) {
     return (
-      <>
-        <AppHeader />
+      <>        
         <main className="min-h-dvh bg-white text-neutral-900">
           <div className="mx-auto max-w-7xl px-6 py-10">
             <h1 className="text-2xl md:text-3xl font-bold">Módulos</h1>
@@ -45,8 +43,7 @@ export default async function CourseModulesPage({
   if (!data) return notFound();
 
   return (
-    <>
-      <AppHeader />
+    <>      
       <main className="min-h-dvh bg-white text-neutral-900">
         <div className="mx-auto max-w-7xl px-4 md:px-6 py-6 md:py-10">
           <ModulesPageView data={data} />

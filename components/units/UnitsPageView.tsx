@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { UnitsPageData } from "@/lib/unitsData";
-import { CheckCircle2, Stars, SquareDashed } from "lucide-react";
+import { CheckCircle2, Stars, CircleDashed } from "lucide-react";
 
 const BRAND = "#ffab40";
 
@@ -16,7 +16,7 @@ export default function UnitsPageView({ data }: { data: UnitsPageData }) {
   const [i, setI] = useState(data.selectedIndex);
   const u = data.units[i];
 
-  // carrossel sem setas — auto-scroll ao encostar nas bordas
+  // ---- carrossel sem setas — auto-scroll ao encostar nas bordas ----
   const stripRef = useRef<HTMLDivElement>(null);
   const dirRef = useRef<(-1 | 0 | 1)>(0);
   const rafRef = useRef<number | null>(null);
@@ -44,16 +44,17 @@ export default function UnitsPageView({ data }: { data: UnitsPageData }) {
   };
   const onLeave = () => (dirRef.current = 0);
 
-  // badges de topo (detalhe)
-  const hasExtra = u.isExtra;
-  const isOptional = u.isOptional;
+  // ---- badges de topo (detalhe) ----
+  const isExtra = !!u.isExtra;
+  const isOptional = !!u.isOptional;
+  const isCompleted = !!u.completed;
 
   return (
     <section className="text-neutral-900">
       {/* voltar para o módulo */}
       <div className="mb-2 flex items-center justify-end">
         <Link
-          href={`/c/${data.course.slug}/${data.module.slug}`}
+          href={`/c/${data.course.slug}`}
           className="inline-flex items-center gap-1 text-sm font-semibold text-neutral-700 hover:text-neutral-900 cursor-pointer"
           title="Voltar para o módulo"
         >
@@ -91,11 +92,11 @@ export default function UnitsPageView({ data }: { data: UnitsPageData }) {
           </div>
           <div className="mt-2 text-xs text-neutral-700">
             Tipo:{" "}
-            {u.isOptional ? (
+            {isOptional ? (
               <span title="Não conta para o XP principal do projeto" className="font-semibold">
                 Opcional
               </span>
-            ) : u.isExtra ? (
+            ) : isExtra ? (
               <span title="Conta para o XP principal e é classificada como Extra" className="font-semibold">
                 Extra
               </span>
@@ -105,37 +106,39 @@ export default function UnitsPageView({ data }: { data: UnitsPageData }) {
           </div>
         </div>
 
-        {/* badges da unidade */}
+        {/* identificadores da unidade (igual lógica da página de módulos) */}
         <div className="mt-3 rounded-2xl border border-neutral-300 bg-white p-3 shadow-lg">
           <div className="text-xs text-neutral-500 mb-2">Identificadores da unidade</div>
           <div className="flex flex-wrap items-center gap-6">
             <div className="flex items-center gap-2" title="Unidade concluída">
               <CheckCircle2
-                className={`h-5 w-5 ${u.completed ? "" : "text-neutral-400"}`}
-                style={u.completed ? { color: "#f59e0b" } : {}}
+                className={`h-5 w-5 ${isCompleted ? "" : "text-neutral-400"}`}
+                style={isCompleted ? { color: "#f59e0b" } : {}}
               />
               <span>Concluída</span>
             </div>
-            <div
-              className="flex items-center gap-2"
-              title={hasExtra ? "Esta unidade é Extra (vale XP principal)" : "Não é Extra"}
-            >
-              <Stars
-                className={`h-5 w-5 ${hasExtra ? "" : "text-neutral-400"}`}
-                style={hasExtra ? { color: "#0ea5e9" } : {}}
-              />
-              <span>Extra</span>
-            </div>
-            <div
-              className="flex items-center gap-2"
-              title={isOptional ? "Opcional (não entra no XP principal do projeto)" : "Não é opcional"}
-            >
-              <SquareDashed
-                className={`h-5 w-5 ${isOptional ? "" : "text-neutral-400"}`}
-                style={isOptional ? { color: "#10b981" } : {}}
-              />
-              <span>Opcional</span>
-            </div>
+
+            {/* Extra: só renderiza se for extra */}
+            {isExtra && (
+              <div
+                className="flex items-center gap-2"
+                title="Esta unidade é Extra (vale XP principal)"
+              >
+                <Stars className="h-5 w-5" style={{ color: "#0ea5e9" }} />
+                <span>Extra</span>
+              </div>
+            )}
+
+            {/* Opcional: só renderiza se for opcional */}
+            {isOptional && (
+              <div
+                className="flex items-center gap-2"
+                title="Opcional (não entra no XP principal do projeto)"
+              >
+                <CircleDashed className="h-5 w-5" style={{ color: "#10b981" }} />
+                <span>Opcional</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -167,15 +170,21 @@ export default function UnitsPageView({ data }: { data: UnitsPageData }) {
           {data.units.map((it, idx) => {
             const active = idx === i;
             const p = pct(it.xpPrimary, it.xpTargetPrimary);
+            const itCompleted = !!it.completed;
+            const itExtra = !!it.isExtra;
+            const itOptional = !!it.isOptional;
 
             return (
               <button
                 key={it.id}
                 onClick={() => setI(idx)}
                 className={`relative aspect-video w-[280px] shrink-0 overflow-hidden rounded-2xl border bg-white shadow transition cursor-pointer ${
-                  active ? "border-2" : "border"
+                  active ? "border-4" : "border"
                 }`}
-                style={active ? { borderColor: BRAND } : { borderColor: "#d4d4d8" }}
+                style={active ? { borderColor: "#bf4eda" } : { borderColor: "#d4d4d8" }}
+                //style={active ? { borderColor: "#363636" } : { borderColor: "#d4d4d8" }}
+
+                
                 title={it.title}
               >
                 {/* imagem */}
@@ -188,27 +197,44 @@ export default function UnitsPageView({ data }: { data: UnitsPageData }) {
                   </div>
                 )}
 
-                {/* chips de canto: Extra / Opcional */}
+                {/* badges canto superior direito (iguais aos módulos) */}
                 <div className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 text-[11px] font-semibold shadow">
+                  {/* concluída: sempre mostramos o ✓ */}
                   <span
                     className={`rounded-full px-1.5 py-0.5 ${
-                      it.isExtra ? "bg-sky-100 text-sky-700" : "bg-neutral-100 text-neutral-400"
+                      itCompleted ? "bg-amber-100 text-amber-700" : "bg-neutral-100 text-neutral-400"
                     }`}
-                    title={it.isExtra ? "Unidade Extra" : "Não é Extra"}
+                    title={itCompleted ? "Unidade concluída" : "Unidade não concluída"}
                   >
-                    ✦
+                    ✓
                   </span>
-                  <span
-                    className={`rounded-full px-1.5 py-0.5 ${
-                      it.isOptional ? "bg-emerald-100 text-emerald-700" : "bg-neutral-100 text-neutral-400"
-                    }`}
-                    title={it.isOptional ? "Unidade Opcional" : "Obrigatória"}
-                  >
-                    ◇
-                  </span>
+
+                  {/* extra: só renderiza se for extra */}
+                  {itExtra && (
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 ${
+                        itCompleted ? "bg-sky-100 text-sky-700" : "bg-neutral-100 text-neutral-400"
+                      }`}
+                      title="Unidade Extra"
+                    >
+                      ✦
+                    </span>
+                  )}
+
+                  {/* opcional: só renderiza se for opcional */}
+                  {itOptional && (
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 ${
+                        itCompleted ? "bg-emerald-100 text-emerald-700" : "bg-neutral-100 text-neutral-400"
+                      }`}
+                      title="Unidade Opcional"
+                    >
+                      ○
+                    </span>
+                  )}
                 </div>
 
-                {/* título branco + barra */}
+                {/* Título branco + barra */}
                 <div className="absolute left-3 right-3 bottom-5">
                   <div
                     className="mb-1 text-[16px] md:text-[17px] font-semibold text-white pl-1.5 text-left"
