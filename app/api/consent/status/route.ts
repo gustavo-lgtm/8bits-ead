@@ -2,40 +2,38 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
+function norm(e?: string) {
+  return (e || "").toLowerCase().trim();
+}
+
 export async function POST(req: Request) {
   try {
     const { email } = await req.json().catch(() => ({} as any));
-    if (!email || typeof email !== "string") {
+    const normalized = norm(email);
+    if (!normalized) {
       return NextResponse.json({ error: "Email ausente." }, { status: 400 });
     }
 
     const user = await prisma.user.findUnique({
-      where: { email: email.toLowerCase().trim() },
-      // campos mínimos; se seus nomes forem ligeiramente diferentes, ajusto abaixo
+      where: { email: normalized },
       select: {
         consentStatus: true,
         guardianEmail: true,
-        // se você tiver um campo com a expiração do link de consentimento, selecione aqui:
-        // ex.: consentTokenExpiresAt
-      } as any,
+        consentExpires: true,
+      },
     });
 
-    // Por padrão, não vaza existência de conta em outros estados.
-    if (!user || (user as any).consentStatus !== "PENDING") {
+    // Se não existe usuário, ou não está pendente, respondemos pending:false
+    if (!user || user.consentStatus !== "PENDING") {
       return NextResponse.json({ pending: false }, { status: 200 });
     }
 
-    // Tenta localizar uma expiração, se houver:
-    const expiresAt: string | null =
-      (user as any).consentTokenExpiresAt?.toISOString?.() ??
-      null;
-
     return NextResponse.json({
       pending: true,
-      guardianEmail: (user as any).guardianEmail ?? null,
-      expiresAt,
+      guardianEmail: user.guardianEmail ?? "",
+      expiresAt: user.consentExpires ? user.consentExpires.toISOString() : "",
     });
-  } catch {
+  } catch (e) {
     return NextResponse.json({ error: "Falha ao consultar status." }, { status: 500 });
   }
 }

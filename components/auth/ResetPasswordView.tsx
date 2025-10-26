@@ -1,19 +1,12 @@
-// app/reset/[token]/page.tsx
+// components/auth/ResetPasswordView.tsx
 "use client";
 
-import { use } from "react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { validatePassword } from "@/lib/password";
 
-export default function ResetPasswordPage({
-  params,
-}: {
-  // Evita o warning “params should be awaited”
-  params: Promise<{ token: string }>;
-}) {
+export default function ResetPasswordView({ token }: { token: string }) {
   const router = useRouter();
-  const { token } = use(params);
 
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -44,10 +37,7 @@ export default function ResetPasswordPage({
         return;
       }
       setOk(true);
-      // hard redirect para garantir CSS/estado limpos na tela de login
-      setTimeout(() => {
-        window.location.assign("/login?info=reset_ok");
-      }, 900);
+      setTimeout(() => router.push("/login"), 1000);
     } catch (e: any) {
       setErr(e?.message ?? "Erro inesperado.");
     } finally {
@@ -55,35 +45,30 @@ export default function ResetPasswordPage({
     }
   }
 
-  const inputCls =
-    "w-full rounded-lg border border-neutral-300 bg-[#e9f1ff] px-3 py-2 text-sm " +
-    "text-neutral-900 placeholder:text-neutral-400 " +
-    "focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400";
-
   return (
     <main className="min-h-dvh grid place-items-center bg-neutral-50">
       <form onSubmit={onSubmit} className="w-full max-w-sm rounded-2xl bg-white p-6 shadow">
-        <h1 className="text-2xl font-bold text-neutral-900">Redefinir senha</h1>
-        <p className="mt-1 text-sm text-neutral-600">Crie uma nova senha para continuar.</p>
+        <h1 className="text-2xl font-bold">Redefinir senha</h1>
+        <p className="mt-1 text-sm text-neutral-600">
+          Crie uma nova senha para continuar.
+        </p>
 
         <div className="mt-4 space-y-3">
           <input
             type="password"
-            className={inputCls}
+            className="w-full rounded-lg border border-neutral-300 bg-[#e9f1ff] px-3 py-2 text-sm"
             placeholder="Nova senha"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="new-password"
-            aria-label="Nova senha"
           />
           <input
             type="password"
-            className={inputCls}
+            className="w-full rounded-lg border border-neutral-300 bg-[#e9f1ff] px-3 py-2 text-sm"
             placeholder="Confirmar nova senha"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             autoComplete="new-password"
-            aria-label="Confirmar nova senha"
           />
 
           {err && (

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { randomBytes } from "crypto";
 import { addMinutes } from "date-fns";
 import { limitOrThrow } from "@/lib/limit";
+import { sendResetEmail } from "@/lib/mail";
 
 export async function POST(req: Request) {
   try {
@@ -29,9 +30,16 @@ export async function POST(req: Request) {
       },
     });
 
-    // TODO: enviar e-mail com link:
-    // const link = `${process.env.NEXTAUTH_URL}/reset/${token}`;
-    // await sendResetEmail(user.email, link);
+    const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+    const link = `${baseUrl}/reset/${token}`;
+
+    // envia o e-mail
+    try {
+      await sendResetEmail({ to: user.email, resetUrl: link });
+    } catch (err) {
+      console.error("Erro ao enviar e-mail de reset:", err);
+      // Mantém resposta genérica para não vazar estado
+    }
 
     return NextResponse.json({ ok: true });
   } catch (e: any) {

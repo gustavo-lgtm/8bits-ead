@@ -111,3 +111,47 @@ Expira em: ${expiresAt.toLocaleString("pt-BR")}`;
 
   return resend.emails.send({ from: FROM, to, subject, html, text });
 }
+
+/** RESET DE SENHA — 15 minutos */
+export async function sendResetEmail(params: { to: string; resetUrl: string }) {
+  const { to, resetUrl } = params;
+  const subject = "Redefinir sua senha • 8bits";
+
+  const html = `
+  <div style="background:#eef2f7;padding:24px;font-family:Inter,system-ui,Segoe UI,Arial,sans-serif;color:#0f172a">
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:680px;margin:0 auto;background:#fff;border-radius:16px;box-shadow:0 6px 18px rgba(0,0,0,.06)">
+      <tr><td style="padding:28px 28px 0" align="center">
+        <img src="${APP_URL}/logo.png" alt="8bits" height="36" style="display:block;opacity:.95"/>
+      </td></tr>
+
+      <tr><td style="padding:20px 28px 0">
+        <h1 style="margin:0 0 8px;font-size:22px;line-height:1.25">Redefinir senha</h1>
+        <p style="margin:0 0 6px;font-size:15px;line-height:1.6;color:#334155">
+          Recebemos um pedido para redefinir sua senha na 8bits.
+        </p>
+        <p style="margin:0 0 6px;font-size:15px;line-height:1.6;color:#334155">
+          Clique no botão abaixo. O link é válido por 15 minutos.
+        </p>
+      </td></tr>
+
+      <tr><td align="center" style="padding:16px 28px 8px">
+        <a href="${resetUrl}" style="background:#ffab40;border-radius:12px;color:#fff;text-decoration:none;display:inline-block;font-weight:700;padding:12px 22px">Redefinir senha</a>
+      </td></tr>
+
+      <tr><td style="padding:4px 28px 22px;text-align:center;font-size:12px;color:#475569">
+        Se você não solicitou, ignore este e-mail.
+      </td></tr>
+    </table>
+
+    <div style="max-width:680px;margin:10px auto 0;text-align:center;font-size:12px;color:#94a3b8">
+      © ${new Date().getFullYear()} 8bits
+    </div>
+  </div>`;
+
+  const text = `Redefinição de senha 8bits
+Acesse: ${resetUrl}
+O link é válido por 15 minutos.
+Se você não solicitou, ignore este e-mail.`;
+
+  return resend.emails.send({ from: FROM, to, subject, html, text });
+}
