@@ -7,12 +7,40 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+
+enum Role {
+  USER
+  STAFF
+  ADMIN
+}
+
+enum ConsentStatus {
+  NONE       // >=13 (não precisa) ou ainda não coletado
+  PENDING    // <13 aguardando responsável
+  APPROVED   // consentimento dado
+  REJECTED   // (opcional) responsável negou
+}
+
 model User {
-  id           String       @id @default(cuid())
-  email        String       @unique
+  id           String   @id @default(cuid())
+  email        String   @unique
   name         String?
   passwordHash String?
-  createdAt    DateTime     @default(now())
+  createdAt    DateTime @default(now())
+
+  role          Role      @default(USER)
+  emailVerified DateTime?
+
+  // --- NOVOS CAMPOS (consentimento/infantil) - todos opcionais ---
+  nickname       String?
+  birthDate      DateTime?
+  consentStatus  ConsentStatus @default(NONE)
+  guardianName   String?
+  guardianEmail  String?
+  consentAt      DateTime?
+  consentMethod  String?        // "email_link", "school_tenant", etc.
+  consentToken   String?        // token de confirmação por e-mail (uso único)
+  consentExpires DateTime?      // validade do token
 
   enrollments  UserCourse[]
   accounts     Account[]
@@ -21,31 +49,60 @@ model User {
   // Gamificação
   xpEvents     UserXPEvent[]
   xpBalances   UserXPBalance[]
+
+  passwordResetTokens PasswordResetToken[]
+  authEvents          AuthEvent[]
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expires   DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model AuthEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  type      String // login_success, login_failed, request_reset, password_changed, logout
+  ip        String?
+  userAgent String?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
 }
 
 model Course {
-  id           String   @id @default(cuid())
-  slug         String   @unique
-  title        String
-  createdAt    DateTime @default(now())  
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  title     String
+  createdAt DateTime @default(now())
 
   // imagens para os cards
   posterWideUrl   String? // 16:9 (card estendido)
   posterNarrowUrl String? // poster vertical/estreito    
 
-  description     String? 
+  description String?
 
   // novas propriedades
-  category     CourseCategory @default(GAME_DEV)
-  level        CourseLevel    @default(N1)
+  category CourseCategory @default(GAME_DEV)
+  level    CourseLevel    @default(N1)
 
-  unlockCodes  CourseUnlockCode[]
-  enrollments  UserCourse[]
-  modules      Module[]
+  unlockCodes CourseUnlockCode[]
+  enrollments UserCourse[]
+  modules     Module[]
 
   // Gamificação
-  xpEvents     UserXPEvent[]
-  xpBalances   UserXPBalance[]
+  xpEvents           UserXPEvent[]
+  xpBalances         UserXPBalance[]
   gamificationConfig CourseGamificationConfig?
 }
 
@@ -64,61 +121,61 @@ enum CourseLevel {
 }
 
 model Module {
-  id         String  @id @default(cuid())
-  courseId   String
-  slug       String
-  title      String
-  icon       String?
-  sortIndex  Int     @default(0)
+  id        String  @id @default(cuid())
+  courseId  String
+  slug      String
+  title     String
+  icon      String?
+  sortIndex Int     @default(0)
 
-  description String? 
-  posterUrl   String?   // imagem 16:9 do card do módulo
-
-  // Gamificação
-  isOptional   Boolean  @default(false)   // capítulo opcional (fora da pontuação principal)
-  bonusPercent Int      @default(10)      // % do bônus ao concluir obrigatórias
-
-  course     Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  units      Unit[]
+  description String?
+  posterUrl   String? // imagem 16:9 do card do módulo
 
   // Gamificação
-  xpEvents   UserXPEvent[]
+  isOptional   Boolean @default(false) // capítulo opcional (fora da pontuação principal)
+  bonusPercent Int     @default(10) // % do bônus ao concluir obrigatórias
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  units  Unit[]
+
+  // Gamificação
+  xpEvents UserXPEvent[]
 
   @@unique([courseId, slug])
   @@index([courseId, sortIndex])
 }
 
 model Unit {
-  id          String   @id @default(cuid())
-  moduleId    String
-  slug        String
-  title       String
-  type        UnitType
-  youtubeId   String?
-  driveFileId String?
-  url         String?
-  durationSec Int?
-  sortIndex   Int       @default(0)
-  requiresCompletedPrevious Boolean @default(false)
-  isWelcome   Boolean  @default(false)
+  id                        String   @id @default(cuid())
+  moduleId                  String
+  slug                      String
+  title                     String
+  type                      UnitType
+  youtubeId                 String?
+  driveFileId               String?
+  url                       String?
+  durationSec               Int?
+  sortIndex                 Int      @default(0)
+  requiresCompletedPrevious Boolean  @default(false)
+  isWelcome                 Boolean  @default(false)
 
-  description String? 
-  posterUrl   String?   // imagem 16:9 do card do módulo
+  description String?
+  posterUrl   String? // imagem 16:9 do card do módulo
 
   // Gamificação
-  isOptional Boolean   @default(false)     // trilha opcional (não entra na principal)
-  isExtra    Boolean   @default(false)     // desafio extra (entra na principal)
-  xpMode     XPMode    @default(FIXED)     // FIXED ou QUIZ_PARTIAL
-  xpValue    Int?      @default(30)        // pontos fixos quando FIXED (default 30)
-  xpMax      Int?                          // teto de pontos quando QUIZ_PARTIAL
+  isOptional Boolean @default(false) // trilha opcional (não entra na principal)
+  isExtra    Boolean @default(false) // desafio extra (entra na principal)
+  xpMode     XPMode  @default(FIXED) // FIXED ou QUIZ_PARTIAL
+  xpValue    Int?    @default(30) // pontos fixos quando FIXED (default 30)
+  xpMax      Int? // teto de pontos quando QUIZ_PARTIAL
 
   // Regras por unidade
-  thresholdPct Int     @default(85)        // percentual mínimo assistido para concluir
+  thresholdPct Int @default(85) // percentual mínimo assistido para concluir
 
-  module      Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  progress    UserUnitProgress[]
+  module   Module             @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  progress UserUnitProgress[]
   // Gamificação
-  xpEvents    UserXPEvent[]
+  xpEvents UserXPEvent[]
 
   @@unique([moduleId, slug])
   @@index([moduleId, sortIndex])
@@ -130,21 +187,23 @@ enum UnitType {
   LINK
 }
 
-/* Progresso de aula */
+/**
+ * Progresso de aula
+ */
 model UserUnitProgress {
-  id            String          @id @default(cuid())
-  userId        String
-  unitId        String
-  status        ProgressStatus  @default(IN_PROGRESS)
-  lastViewedAt  DateTime        @default(now())
-  completedAt   DateTime?
+  id           String         @id @default(cuid())
+  userId       String
+  unitId       String
+  status       ProgressStatus @default(IN_PROGRESS)
+  lastViewedAt DateTime       @default(now())
+  completedAt  DateTime?
 
   // novos campos de progresso de vídeo
-  watchedSeconds Int            @default(0)
-  watchedPct     Float          @default(0)
+  watchedSeconds Int   @default(0)
+  watchedPct     Float @default(0)
 
-  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  unit          Unit            @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unit Unit @relation(fields: [unitId], references: [id], onDelete: Cascade)
 
   @@unique([userId, unitId])
   @@index([userId])
@@ -156,15 +215,17 @@ enum ProgressStatus {
   COMPLETED
 }
 
-/* Matrícula / desbloqueio */
+/**
+ * Matrícula / desbloqueio
+ */
 model UserCourse {
   id         String   @id @default(cuid())
   userId     String
   courseId   String
   unlockedAt DateTime @default(now())
 
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   @@unique([userId, courseId])
   @@index([userId])
@@ -179,7 +240,7 @@ model CourseUnlockCode {
   createdAt DateTime     @default(now())
   usedAt    DateTime?
 
-  course    Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   @@index([courseId])
 }
@@ -190,73 +251,80 @@ enum UnlockStatus {
   REVOKED
 }
 
-/* Gamificação: enums */
+/**
+ * Gamificação: enums
+ */
 enum XPMode {
   FIXED
   QUIZ_PARTIAL
 }
 
 enum XPType {
-  MANDATORY   // Itens obrigatórios
-  EXTRA       // Desafios/atividades extras
-  OPTIONAL    // Trilhas opcionais
-  BONUS       // Bônus por módulo
-  WELCOME     // XP de boas-vindas
+  MANDATORY // Itens obrigatórios
+  EXTRA // Desafios/atividades extras
+  OPTIONAL // Trilhas opcionais
+  BONUS // Bônus por módulo
+  WELCOME // XP de boas-vindas
 }
 
-/* Gamificação: configuração por curso */
+/**
+ * Gamificação: configuração por curso
+ */
 model CourseGamificationConfig {
-  id                   String  @id @default(cuid())
-  courseId             String  @unique
-  countExtraInPrimary  Boolean @default(true) // se false, EXTRA não entra na principal
-  xpWelcome            Int     @default(0)    // XP ao desbloquear curso
+  id                  String  @id @default(cuid())
+  courseId            String  @unique
+  countExtraInPrimary Boolean @default(true) // se false, EXTRA não entra na principal
+  xpWelcome           Int     @default(0) // XP ao desbloquear curso
 
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 }
 
-/* Gamificação: eventos (log imutável) */
+/**
+ * Gamificação: eventos (log imutável)
+ */
 model UserXPEvent {
   id        String   @id @default(cuid())
   userId    String
   courseId  String
   moduleId  String?
   unitId    String?
-  eventType String   // "unit_completed" | "module_bonus" | "course_welcome"...
+  eventType String // "unit_completed" | "module_bonus" | "course_welcome"...
   xp        Int
   xpType    XPType
   meta      Json?
   createdAt DateTime @default(now())
 
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
   module Module? @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   unit   Unit?   @relation(fields: [unitId], references: [id], onDelete: Cascade)
-
-  @@index([userId, courseId, createdAt])
-  @@index([courseId, moduleId, unitId])
 
   // Idempotência por alvo
   @@unique([userId, unitId, eventType])
   @@unique([userId, moduleId, eventType])
   @@unique([userId, courseId, eventType])
+  @@index([userId, courseId, createdAt])
+  @@index([courseId, moduleId, unitId])
 }
 
-/* Gamificação: saldos materializados */
+/**
+ * Gamificação: saldos materializados
+ */
 model UserXPBalance {
-  id         String   @id @default(cuid())
-  userId     String
-  courseId   String
+  id       String @id @default(cuid())
+  userId   String
+  courseId String
 
-  xpMandatory Int     @default(0)
-  xpExtra     Int     @default(0)
-  xpOptional  Int     @default(0)
-  xpBonus     Int     @default(0)
-  xpWelcome   Int     @default(0)
+  xpMandatory Int @default(0)
+  xpExtra     Int @default(0)
+  xpOptional  Int @default(0)
+  xpBonus     Int @default(0)
+  xpWelcome   Int @default(0)
 
-  xpPrimary   Int     @default(0)  // principal (regra do curso)
-  xpTotal     Int     @default(0)  // primary + optional
+  xpPrimary Int @default(0) // principal (regra do curso)
+  xpTotal   Int @default(0) // primary + optional
 
-  updatedAt   DateTime @updatedAt
+  updatedAt DateTime @updatedAt
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
@@ -265,7 +333,9 @@ model UserXPBalance {
   @@index([courseId, xpPrimary])
 }
 
-/* NextAuth */
+/**
+ * NextAuth
+ */
 model Account {
   id                String  @id @default(cuid())
   userId            String

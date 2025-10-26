@@ -1,69 +1,171 @@
+// app/login/page.tsx
 "use client";
 
-import { useSearchParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function LoginPage() {
-  const params = useSearchParams();
   const router = useRouter();
-  const callbackUrl = params.get("callback") ?? "/painel";
+  const params = useSearchParams();
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(params.get("email") || "");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const info = params.get("info");
 
-  async function onSubmit(e: React.FormEvent) {
+  const [hasGoogle, setHasGoogle] = useState(false);
+  const [hasAzure, setHasAzure] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/auth/providers")
+      .then((r) => r.json())
+      .then((p) => {
+        setHasGoogle(!!p.google);
+        setHasAzure(!!p["azure-ad"]);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const e = params.get("error");
+    if (e) setErr("Falha ao entrar. Verifique seus dados ou tente outro método.");
+  }, [params]);
+
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErr(null);
     setLoading(true);
-    const res = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-      callbackUrl,
-    });
-    setLoading(false);
-    if (res?.error) {
-      alert("Credenciais inválidas");
-      return;
+    try {
+      const res = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      });
+      if (!res || res.error) {
+        setErr("Não foi possível entrar com e-mail e senha. Verifique seus dados ou confirme seu e-mail.");
+      } else {
+        router.push("/cursos"); // ➜ lista de projetos
+      }
+    } finally {
+      setLoading(false);
     }
-    router.push(callbackUrl);
+  };
+
+  async function resendVerification() {
+    setErr(null);
+    setLoading(true);
+    try {
+      const r = await fetch("/api/auth/verify/send", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const j = await r.json();
+      if (!r.ok) setErr(j?.error || "Não foi possível reenviar o e-mail de verificação.");
+      else alert("Reenviamos o e-mail de verificação. Confira sua caixa de entrada.");
+    } catch {
+      setErr("Erro ao reenviar verificação.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
-    <main className="min-h-dvh p-6 md:p-10">
-      <div className="mx-auto max-w-md">
-        <h1 className="text-2xl md:text-3xl font-bold">Entrar</h1>
-        <form onSubmit={onSubmit} className="mt-6 space-y-3">
-          <label className="block text-sm font-medium">
-            Email
-            <input
-              type="email"
-              className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </label>
-          <label className="block text-sm font-medium">
-            Senha
-            <input
-              type="password"
-              className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </label>
+    <main className="min-h-dvh grid place-items-center bg-neutral-50">
+      <form onSubmit={onSubmit} className="w-full max-w-sm rounded-2xl bg-white p-6 shadow">
+        <h1 className="text-2xl font-bold mb-4">Entrar</h1>
+
+        {info === "verify" && (
+          <div className="mb-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2 text-sm">
+            Conta criada! Enviamos um e-mail para confirmar seu endereço. Verifique sua caixa de entrada.
+          </div>
+        )}
+
+        <div className="space-y-3">
+          <input
+            type="email"
+            className="w-full rounded-lg border border-neutral-300 bg-[#e9f1ff] px-3 py-2 text-sm"
+            placeholder="Seu e-mail"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+          />
+          <input
+            type="password"
+            className="w-full rounded-lg border border-neutral-300 bg-[#e9f1ff] px-3 py-2 text-sm"
+            placeholder="Sua senha"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+          />
+
+          {err && (
+            <div className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 text-sm">
+              {err}
+              <div className="mt-2 text-xs">
+                Se você acabou de se cadastrar e tem 13 anos ou mais, confirme seu e-mail.{" "}
+                <button
+                  type="button"
+                  onClick={resendVerification}
+                  className="underline font-semibold cursor-pointer"
+                >
+                  Reenviar verificação
+                </button>
+              </div>
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-black px-4 py-2 text-white disabled:opacity-60"
+            className="w-full rounded-xl bg-[#ffab40] text-white font-semibold py-2 shadow disabled:opacity-60"
           >
-            {loading ? "Entrando..." : "Entrar"}
+            {loading ? "Entrando…" : "Entrar"}
           </button>
-        </form>
-      </div>
+        </div>
+
+        {(hasGoogle || hasAzure) && (
+          <div className="my-4 flex items-center gap-2">
+            <div className="h-px flex-1 bg-neutral-200" />
+            <span className="text-xs text-neutral-500">ou</span>
+            <div className="h-px flex-1 bg-neutral-200" />
+          </div>
+        )}
+
+        <div className="space-y-2">
+          {hasGoogle && (
+            <button
+              type="button"
+              onClick={() => signIn("google", { callbackUrl: "/cursos" })}  // ➜ lista de projetos
+              className="w-full rounded-xl bg-white border border-neutral-300 text-neutral-900 font-semibold py-2 shadow-sm hover:bg-neutral-50 cursor-pointer"
+              title="Entrar com Google"
+            >
+              Entrar com Google
+            </button>
+          )}
+          {hasAzure && (
+            <button
+              type="button"
+              onClick={() => signIn("azure-ad", { callbackUrl: "/cursos" })}   // ➜ lista de projetos
+              className="w-full rounded-xl bg-white border border-neutral-300 text-neutral-900 font-semibold py-2 shadow-sm hover:bg-neutral-50 cursor-pointer"
+              title="Entrar com Microsoft"
+            >
+              Entrar com Microsoft
+            </button>
+          )}
+        </div>
+
+        <div className="mt-4 flex items-center justify-between text-sm">
+          <a href="/forgot" className="text-neutral-700 hover:underline">
+            Esqueci minha senha
+          </a>
+          <a href="/register" className="text-neutral-700 hover:underline">
+            Criar conta
+          </a>
+        </div>
+      </form>
     </main>
   );
 }

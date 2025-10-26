@@ -74,7 +74,8 @@ export default function AppTopBar() {
               alt="Logo 8bits"
               width={32}
               height={32}
-              className="block h-8 w-auto rounded-sm"
+              //className="block h-8 w-auto rounded-sm"
+              className="block h-8 w-auto rounded-sm -translate-y-[3px]"
               priority
             />
             {/* Título maior e na mesma cor do hambúrguer */}
