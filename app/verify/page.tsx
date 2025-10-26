@@ -2,7 +2,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 type Mode = "token" | "code";
 
@@ -14,25 +14,30 @@ export default function VerifyPage() {
   const initialEmail = params.get("email") || "";
   const mode: Mode = token ? "token" : "code";
 
-  // estados comuns
   const [email, setEmail] = useState(initialEmail);
   const [err, setErr] = useState<string | null>(null);
 
-  // estados do fluxo "código"
+  // fluxo código
   const [code, setCode] = useState("");
   const [ok, setOk] = useState(false);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
 
-  // estados do fluxo "token"
+  // fluxo token
   const [confirming, setConfirming] = useState(false);
   const [confirmedEmail, setConfirmedEmail] = useState<string | null>(null);
 
-  useEffect(() => {
-    setEmail(initialEmail);
-  }, [initialEmail]);
+  useEffect(() => { setEmail(initialEmail); }, [initialEmail]);
 
-  // Fluxo TOKEN: confirma automaticamente ao abrir
+  // Helper para ler JSON com fallback para texto
+  async function readJsonSafe(res: Response) {
+    const ct = res.headers.get("content-type") || "";
+    if (ct.includes("application/json")) return res.json();
+    const text = await res.text();
+    try { return JSON.parse(text); } catch { return { error: text || "Erro inesperado." }; }
+  }
+
+  // TOKEN: confirma ao carregar
   useEffect(() => {
     if (mode !== "token" || !token) return;
 
@@ -45,8 +50,8 @@ export default function VerifyPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ token }),
         });
-        const j = await r.json();
-        if (!r.ok) {
+        const j = await readJsonSafe(r);
+        if (!r.ok || j?.error) {
           setErr(j?.error || "Não foi possível confirmar o e-mail.");
         } else {
           setConfirmedEmail(j?.email || initialEmail || null);
@@ -59,7 +64,7 @@ export default function VerifyPage() {
     })();
   }, [mode, token, initialEmail]);
 
-  // SUBMIT do fluxo CÓDIGO
+  // SUBMIT (código)
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr(null);
@@ -70,8 +75,8 @@ export default function VerifyPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, code }),
       });
-      const json = await res.json();
-      if (!res.ok) setErr(json?.error || "Código inválido.");
+      const json = await readJsonSafe(res);
+      if (!res.ok || json?.error) setErr(json?.error || "Código inválido.");
       else {
         setOk(true);
         setTimeout(() => router.push(`/login?email=${encodeURIComponent(email)}`), 1000);
@@ -83,7 +88,6 @@ export default function VerifyPage() {
     }
   };
 
-  // REENVIAR no fluxo CÓDIGO
   const onResend = async () => {
     setErr(null);
     setResending(true);
@@ -93,8 +97,8 @@ export default function VerifyPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
-      const json = await res.json();
-      if (!res.ok) setErr(json?.error || "Erro ao reenviar.");
+      const json = await readJsonSafe(res);
+      if (!res.ok || json?.error) setErr(json?.error || "Erro ao reenviar.");
     } catch (e: any) {
       setErr(e?.message ?? "Erro inesperado.");
     } finally {
@@ -102,9 +106,7 @@ export default function VerifyPage() {
     }
   };
 
-  // UI
-
-  // 1) Fluxo TOKEN
+  // UI – modo token
   if (mode === "token") {
     return (
       <main className="min-h-dvh grid place-items-center bg-neutral-50">
@@ -119,9 +121,7 @@ export default function VerifyPage() {
                 E-mail <span className="font-mono">{confirmedEmail}</span> confirmado com sucesso!
               </p>
               <button
-                onClick={() =>
-                  router.push(`/login?email=${encodeURIComponent(confirmedEmail)}`)
-                }
+                onClick={() => router.push(`/login?email=${encodeURIComponent(confirmedEmail)}`)}
                 className="mt-5 w-full rounded-xl bg-amber-400 text-white font-semibold py-2 shadow hover:opacity-95"
               >
                 Abrir tela de login
@@ -147,7 +147,7 @@ export default function VerifyPage() {
     );
   }
 
-  // 2) Fluxo CÓDIGO (form atual)
+  // UI – modo código
   return (
     <main className="min-h-dvh grid place-items-center bg-neutral-50">
       <form onSubmit={onSubmit} className="w-full max-w-sm rounded-2xl bg-white p-6 shadow">
@@ -165,7 +165,6 @@ export default function VerifyPage() {
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="email"
           />
-
           <input
             inputMode="numeric"
             pattern="[0-9]*"
@@ -206,9 +205,7 @@ export default function VerifyPage() {
         </div>
 
         <div className="mt-4 text-sm">
-          <a href="/login" className="text-neutral-700 hover:underline">
-            Voltar ao login
-          </a>
+          <a href="/login" className="text-neutral-700 hover:underline">Voltar ao login</a>
         </div>
       </form>
     </main>

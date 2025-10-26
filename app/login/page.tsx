@@ -43,11 +43,38 @@ export default function LoginPage() {
         password,
         redirect: false,
       });
+
       if (!res || res.error) {
+        // ⤵️ NOVO: checa se o email está pendente de consentimento
+        try {
+          const r = await fetch("/api/consent/status", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ email }),
+          });
+          const j = await r.json().catch(() => null);
+
+          if (j?.pending) {
+            const guardianEmail = j.guardianEmail || "";
+            const expiresAt = j.expiresAt || "";
+            const qs = new URLSearchParams({
+              email,
+              guardianEmail,
+              expiresAt,
+            }).toString();
+            router.push(`/aguardando-consentimento?${qs}`);
+            return; // encerra aqui
+          }
+        } catch {
+          // ignora erro da checagem e cai na mensagem genérica
+        }
+
         setErr("Não foi possível entrar com e-mail e senha. Verifique seus dados ou confirme seu e-mail.");
-      } else {
-        router.push("/cursos"); // ➜ lista de projetos
+        return;
       }
+
+      // login OK → vai para a lista de projetos
+      router.push("/cursos");
     } finally {
       setLoading(false);
     }
@@ -138,7 +165,7 @@ export default function LoginPage() {
           {hasGoogle && (
             <button
               type="button"
-              onClick={() => signIn("google", { callbackUrl: "/cursos" })}  // ➜ lista de projetos
+              onClick={() => signIn("google", { callbackUrl: "/cursos" })}
               className="w-full rounded-xl bg-white border border-neutral-300 text-neutral-900 font-semibold py-2 shadow-sm hover:bg-neutral-50 cursor-pointer"
               title="Entrar com Google"
             >
@@ -148,7 +175,7 @@ export default function LoginPage() {
           {hasAzure && (
             <button
               type="button"
-              onClick={() => signIn("azure-ad", { callbackUrl: "/cursos" })}   // ➜ lista de projetos
+              onClick={() => signIn("azure-ad", { callbackUrl: "/cursos" })}
               className="w-full rounded-xl bg-white border border-neutral-300 text-neutral-900 font-semibold py-2 shadow-sm hover:bg-neutral-50 cursor-pointer"
               title="Entrar com Microsoft"
             >
