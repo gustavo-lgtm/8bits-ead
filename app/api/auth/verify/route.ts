@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { limitOrThrow } from "@/lib/limit";
+import { limitOrThrow, getClientIp } from "@/lib/limit";
 
 export async function POST(req: Request) {
   try {
-    const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0] || "ip";
-    await limitOrThrow(`verify:${ip}`);
+    //const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0] || "ip";    
+    const ip = getClientIp(req);
+    await limitOrThrow({ key: `ip:${ip}|path:/api/auth/XYZ`, capacity: 5, windowMs: 10 * 60_000 });
 
     const { email, code } = await req.json();
     const em = (email || "").toLowerCase().trim();

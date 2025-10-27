@@ -9,7 +9,7 @@ import { sendResetEmail } from "@/lib/mail";
 export async function POST(req: Request) {
   try {
     const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0] || "ip";
-    await limitOrThrow(`forgot:${ip}`);
+    await limitOrThrow({ key: `ip:${ip}|path:/api/auth/forgot`, capacity: 5, windowMs: 10 * 60_000 });
 
     const { email } = await req.json();
     const em = (email || "").toLowerCase().trim();
