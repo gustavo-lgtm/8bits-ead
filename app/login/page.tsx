@@ -2,6 +2,8 @@
 import { Suspense } from "react";
 import LoginClient from "./LoginClient";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Entrar - 8bits",
 };
