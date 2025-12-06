@@ -2,12 +2,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 export default function LoginPage() {
   const router = useRouter();
   const params = useSearchParams();
+  const { status } = useSession();
+  const callback = params.get("callback") || "/cursos";
 
   const [email, setEmail] = useState(params.get("email") || "");
   const [password, setPassword] = useState("");
@@ -17,6 +19,14 @@ export default function LoginPage() {
 
   const [hasGoogle, setHasGoogle] = useState(false);
   const [hasAzure, setHasAzure] = useState(false);
+
+  // Se já estiver autenticado e cair na tela de login,
+  // manda direto para o callback (ou /cursos).
+  useEffect(() => {
+    if (status === "authenticated") {
+      router.replace(callback);
+    }
+  }, [status, callback, router]);
 
   useEffect(() => {
     fetch("/api/auth/providers")
@@ -42,6 +52,7 @@ export default function LoginPage() {
         email,
         password,
         redirect: false,
+        callbackUrl: callback,
       });
 
       if (!res || res.error) {
@@ -70,7 +81,10 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/cursos"); // login OK → lista de projetos
+      // Mesmo que o res.url venha meio estranho, o useEffect acima
+      // garante o redirecionamento assim que a sessão estiver ativa.
+      // Aqui já forçamos ir para o callback também:
+      router.push(callback);
     } finally {
       setLoading(false);
     }
