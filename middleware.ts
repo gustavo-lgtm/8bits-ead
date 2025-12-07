@@ -1,69 +1,111 @@
 // middleware.ts
-import { withAuth } from "next-auth/middleware";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
+import { getToken } from "next-auth/jwt";
 
-const PUBLIC_PATHS = [
+/**
+ * Rotas públicas (não exigem login).
+ * Inclui:
+ * - páginas de autenticação
+ * - páginas públicas específicas
+ * - APIs do NextAuth / debug / unlock
+ * - assets estáticos (imagens, ícones etc.)
+ */
+const PUBLIC_ROUTES: (string | RegExp)[] = [
   "/login",
   "/register",
-  "/forgot",
   "/verify",
   "/responsavel/consentir",
-  "/unlock",          // qualquer slug depois disso continua público
+  "/aguardando-consentimento",
+
+  // Páginas de desbloqueio da box (a própria página trata o caso logado/não logado)
+  /^\/unlock\/.*/,
+
+  // Endpoints internos do NextAuth
+  /^\/api\/auth\/.*/,
+
+  // APIs específicas que podem ser públicas
+  /^\/api\/unlock\/.*/,
+  /^\/api\/debug\/.*/,
+
+  // Assets gerados pelo Next
+  /^\/_next\/.*/,
+
+  // Qualquer arquivo estático em /public (png, jpg, svg, ico, etc.)
+  /^\/.*\.(png|jpe?g|gif|svg|ico|webp)$/i,
 ];
 
-function isPublicPath(pathname: string) {
-  if (pathname === "/") return false; // tratamos a raiz à parte
-  // considera público se o caminho for exatamente igual
-  // ou começar com um dos prefixos (ex.: /unlock/b001)
-  return PUBLIC_PATHS.some((base) =>
-    pathname === base || pathname.startsWith(base + "/")
-  );
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_ROUTES.some((route) => {
+    if (typeof route === "string") return route === pathname;
+    return route.test(pathname);
+  });
 }
 
-export default withAuth(
-  function middleware(req) {
-    const { pathname } = req.nextUrl;
-    const token = req.nextauth.token;
+export async function middleware(req: NextRequest) {
+  const { pathname, search } = req.nextUrl;
+  const isPublic = isPublicPath(pathname);
 
-    // 1) Raiz sem login -> /login (sem callback feio)
-    if (!token && pathname === "/") {
-      const loginUrl = new URL("/login", req.url);
-      return NextResponse.redirect(loginUrl);
+  // Token JWT do NextAuth (pode ser null se não estiver logado)
+  const token = await getToken({ req });
+  const isLoggedIn = !!token;
+
+  // - Se for rota pública, deixa passar sempre
+  if (isPublic) {
+    // Pequena regra extra: se já está logado e tentar ir para /login ou /register,
+    // redireciona para o painel/cursos para evitar loop bobo.
+    if (
+      isLoggedIn &&
+      (pathname === "/login" || pathname === "/register" || pathname === "/")
+    ) {
+      const to = req.nextUrl.clone();
+      to.pathname = "/cursos"; // ou "/painel", se preferir
+      to.search = "";
+      return NextResponse.redirect(to);
     }
 
-    // 2) Páginas públicas -> segue o jogo
-    if (isPublicPath(pathname)) {
-      return NextResponse.next();
-    }
-
-    // 3) Não logado tentando acessar rota protegida -> manda para login com callback
-    if (!token) {
-      const loginUrl = new URL("/login", req.url);
-      loginUrl.searchParams.set("callback", req.nextUrl.href);
-      return NextResponse.redirect(loginUrl);
-    }
-
-    // 4) Já logado acessando /login -> manda para /cursos
-    if (token && pathname === "/login") {
-      return NextResponse.redirect(new URL("/cursos", req.url));
-    }
-
-    // 5) Qualquer outra coisa -> continua normal
     return NextResponse.next();
-  },
-  {
-    callbacks: {
-      // deixamos sempre "authorized", o controle real é feito acima
-      authorized() {
-        return true;
-      },
-    },
   }
-);
 
-// Evita rodar o middleware em assets estáticos e em /api/auth
+  // - Se NÃO está logado e a rota NÃO é pública: manda para login com callback
+  if (!isLoggedIn) {
+    const loginUrl = req.nextUrl.clone();
+    loginUrl.pathname = "/login";
+
+    // callback = rota original + query string
+    const callback = pathname + (search || "");
+    loginUrl.searchParams.set("callback", callback);
+
+    return NextResponse.redirect(loginUrl);
+  }
+
+  // - Se está logado, podemos aplicar regras extras para áreas restritas
+  const role = (token as any)?.role as "ADMIN" | "STAFF" | "USER" | undefined;
+
+  // Protege /admin para ADMIN/STAFF apenas
+  if (pathname.startsWith("/admin")) {
+    if (role !== "ADMIN" && role !== "STAFF") {
+      // sem permissão - redireciona para o painel
+      const to = req.nextUrl.clone();
+      to.pathname = "/painel";
+      to.search = "";
+      return NextResponse.redirect(to);
+    }
+  }
+
+  // Se usuário logado cair em "/", manda para /cursos
+  if (pathname === "/") {
+    const to = req.nextUrl.clone();
+    to.pathname = "/cursos";
+    to.search = "";
+    return NextResponse.redirect(to);
+  }
+
+  // Qualquer outra rota segue normalmente
+  return NextResponse.next();
+}
+
+// Aplica o middleware em tudo, exceto os assets internos do Next
 export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|api/auth).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image).*)"],
 };
+

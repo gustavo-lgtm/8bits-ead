@@ -120,7 +120,7 @@ export default function LoginPage() {
   return (
     <main className="min-h-dvh grid place-items-center bg-neutral-50">
       <form onSubmit={onSubmit} className="w-full max-w-sm rounded-2xl bg-white p-6 shadow">
-        <h1 className="text-2xl font-bold mb-4">Entrar</h1>
+        <h1 className="text-2xl font-bold mb-4"></h1>
 
         {info === "verify" && (
           <div className="mb-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2 text-sm">
@@ -167,7 +167,7 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full rounded-xl bg-[#ffab40] text-white font-semibold py-2 shadow disabled:opacity-60"
           >
-            {loading ? "Entrando…" : "Entrar"}
+            {loading ? "Entrando…" : ""}
           </button>
         </div>
 
@@ -186,7 +186,7 @@ export default function LoginPage() {
               onClick={() => signIn("google", { callbackUrl: callback })}
               className="w-full inline-flex items-center justify-center gap-3 rounded-[4px] border border-[#dadce0] bg-white px-4 py-2 text-[14px] font-medium text-[#1f1f1f] shadow-sm hover:bg-[#f8f9fa] active:bg-[#f1f3f4] cursor-pointer"
               style={{ lineHeight: 1 }}
-              aria-label="Entrar com Google"
+              aria-label=" com Google"
             >
               <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
                 <path
