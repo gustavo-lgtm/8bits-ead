@@ -10,23 +10,24 @@ export default async function UnlockPage({
 }) {
   const { slug } = await params;
   const session = await getServerSession(authOptions);
-  const prettySlug = slug?.toUpperCase();
 
-  // Quando não está logado: mensagem amigável + botão para login
+  // slug vem como "b001", "b005" etc.
+  // Queremos mostrar sempre "Box 001", "Box 005", ignorando a letra inicial.
+  const raw = slug || "";
+  const boxCode =
+    raw.length > 1 ? raw.slice(1).toUpperCase() : raw.toUpperCase();
+  const boxLabel = `Box ${boxCode}`;
+
+  // Quando não está logado: texto único + botão de login
   if (!session) {
     const callback = encodeURIComponent(`/unlock/${slug}`);
 
     return (
       <main className="min-h-dvh flex items-center justify-center bg-neutral-50 px-4 py-10">
         <section className="w-full max-w-md rounded-2xl bg-white px-6 py-6 md:px-8 md:py-8 shadow">
-          <h1 className="text-2xl md:text-3xl font-bold text-neutral-900">
-            Entre para desbloquear sua box
-          </h1>
-
-          <p className="mt-2 text-sm text-neutral-600">
-            Para ativar a box{" "}
-            <span className="font-semibold">{prettySlug}</span>, primeiro faça
-            login na sua conta 8bits.
+          <p className="text-sm text-neutral-700">
+            Antes de desbloquear a missão da {boxLabel} faça login na sua conta
+            da 8bits.
           </p>
 
           <a
@@ -53,7 +54,7 @@ export default async function UnlockPage({
         </h1>
 
         <p className="mt-2 text-sm text-neutral-600">
-          Box <span className="font-semibold">{prettySlug}</span>
+          <span className="font-semibold">{boxLabel}</span>
         </p>
 
         <p className="mt-1 text-xs text-neutral-500">

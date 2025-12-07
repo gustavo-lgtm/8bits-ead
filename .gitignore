@@ -39,6 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-.env
+
+# dev db (sqlite leftovers)
 dev.db
-"prisma/migrations_sqlite_backup" 
+
+# old sqlite backup — DO NOT TRACK
+prisma/migrations_sqlite_backup/

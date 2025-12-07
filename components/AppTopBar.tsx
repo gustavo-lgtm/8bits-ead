@@ -4,7 +4,15 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Menu as MenuIcon, X, ChevronRight, UserCircle2, LogOut, User2, LogIn } from "lucide-react";
+import {
+  Menu as MenuIcon,
+  X,
+  ChevronRight,
+  UserCircle2,
+  LogOut,
+  User2,
+  LogIn,
+} from "lucide-react";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 
@@ -25,7 +33,11 @@ export default function AppTopBar() {
   const { pathname, courseSlug, moduleSlug } = useRouteContext();
   const { data: session, status } = useSession();
   const authed = status === "authenticated";
-  const role = (session?.user as any)?.role as ("ADMIN" | "STAFF" | "USER" | undefined);
+  const role = (session?.user as any)?.role as
+    | "ADMIN"
+    | "STAFF"
+    | "USER"
+    | undefined;
 
   const [navOpen, setNavOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
@@ -54,12 +66,19 @@ export default function AppTopBar() {
   // Links do drawer (apenas quando autenticado)
   const links = useMemo(() => {
     if (!authed) return [];
-    const arr = [
+    const arr: { label: string; href?: string; disabled?: boolean }[] = [
       { label: "Projetos", href: "/cursos" },
-      { label: "Módulos", href: courseSlug ? `/c/${courseSlug}` : undefined, disabled: !courseSlug },
+      {
+        label: "Módulos",
+        href: courseSlug ? `/c/${courseSlug}` : undefined,
+        disabled: !courseSlug,
+      },
       {
         label: "Unidades",
-        href: courseSlug && moduleSlug ? `/c/${courseSlug}/${moduleSlug}` : undefined,
+        href:
+          courseSlug && moduleSlug
+            ? `/c/${courseSlug}/${moduleSlug}`
+            : undefined,
         disabled: !(courseSlug && moduleSlug),
       },
     ];
@@ -73,6 +92,24 @@ export default function AppTopBar() {
 
   // Link de login com retorno à rota atual
   const loginHref = `/login?callback=${encodeURIComponent(pathname || "/")}`;
+
+  // Bloco de marca (logo + texto), reaproveitado em versão link e versão "estática"
+  const Brand = (
+    <>
+      <Image
+        // garanta que exista um arquivo /public/8bits_logo.png neste projeto
+        src="/8bits_logo.png"
+        alt="Logo 8bits"
+        width={32}
+        height={32}
+        className="block h-8 w-auto -translate-y-[2px]"
+        priority
+      />
+      <span className={`text-[17px] md:text-[18px] font-semibold ${TEXT_MAIN}`}>
+        8bits Educação
+      </span>
+    </>
+  );
 
   return (
     <>
@@ -98,17 +135,20 @@ export default function AppTopBar() {
             </button>
           )}
 
-          <Link href="/cursos" className="flex items-center gap-3 select-none">
-            <Image
-              src="/favicon.png"
-              alt="Logo 8bits"
-              width={32}
-              height={32}
-              className="block h-8 w-auto rounded-sm -translate-y-[3px]"
-              priority
-            />
-            <span className={`text-[17px] md:text-[18px] font-semibold ${TEXT_MAIN}`}>8bits Educação</span>
-          </Link>
+          {authed ? (
+            // Autenticado: logo + título são atalho para /cursos
+            <Link
+              href="/cursos"
+              className="flex items-center gap-3 select-none cursor-pointer"
+            >
+              {Brand}
+            </Link>
+          ) : (
+            // Não autenticado: só mostra marca, sem link inútil
+            <div className="flex items-center gap-3 select-none cursor-default">
+              {Brand}
+            </div>
+          )}
         </div>
 
         {/* placeholder central (se quiser título de contexto depois) */}
@@ -168,11 +208,15 @@ export default function AppTopBar() {
       {/* Drawer (menu hambúrguer) — só existe logado */}
       {authed && (
         <div
-          className={`fixed inset-0 z-[49] ${navOpen ? "pointer-events-auto" : "pointer-events-none"}`}
+          className={`fixed inset-0 z-[49] ${
+            navOpen ? "pointer-events-auto" : "pointer-events-none"
+          }`}
           aria-hidden={!navOpen}
         >
           <div
-            className={`absolute inset-0 bg-black/30 transition-opacity ${navOpen ? "opacity-100" : "opacity-0"}`}
+            className={`absolute inset-0 bg-black/30 transition-opacity ${
+              navOpen ? "opacity-100" : "opacity-0"
+            }`}
             onClick={() => setNavOpen(false)}
           />
           <nav
@@ -182,7 +226,9 @@ export default function AppTopBar() {
             style={{ paddingTop: TOPBAR_H }}
           >
             <div className="px-3 py-2 border-b border-neutral-200 flex items-center justify-between">
-              <span className={`text-sm font-semibold ${TEXT_MAIN}`}>Navegação</span>
+              <span className={`text-sm font-semibold ${TEXT_MAIN}`}>
+                Navegação
+              </span>
               <button
                 onClick={() => setNavOpen(false)}
                 className="grid place-items-center h-8 w-8 rounded-full hover:bg-neutral-100 transition cursor-pointer"
