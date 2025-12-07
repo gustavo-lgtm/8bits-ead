@@ -9,11 +9,6 @@ export default function LoginPage() {
   const router = useRouter();
   const params = useSearchParams();
 
-  // URL para onde devemos ir depois de logar.
-  // Se o middleware mandou para /login?callback=..., usamos isso.
-  // Se não, caímos no padrão /cursos.
-  const callback = params.get("callback") || "/cursos";
-
   const [email, setEmail] = useState(params.get("email") || "");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -44,14 +39,11 @@ export default function LoginPage() {
     e.preventDefault();
     setErr(null);
     setLoading(true);
-
     try {
       const res = await signIn("credentials", {
         email,
         password,
         redirect: false,
-        // avisa o NextAuth qual é a URL de destino após login
-        callbackUrl: callback,
       });
 
       if (!res || res.error) {
@@ -82,14 +74,7 @@ export default function LoginPage() {
         return;
       }
 
-      // Login OK:
-      // forçamos um redirect de página inteira para garantir que
-      // o middleware veja o cookie já na primeira navegação.
-      if (typeof window !== "undefined") {
-        window.location.href = callback;
-      } else {
-        router.push(callback);
-      }
+      router.push("/cursos"); // login OK → lista de projetos
     } finally {
       setLoading(false);
     }
@@ -106,9 +91,13 @@ export default function LoginPage() {
       });
       const j = await r.json();
       if (!r.ok) {
-        setErr(j?.error || "Não foi possível reenviar o e-mail de verificação.");
+        setErr(
+          j?.error || "Não foi possível reenviar o e-mail de verificação."
+        );
       } else {
-        alert("Reenviamos o e-mail de verificação. Confira sua caixa de entrada.");
+        alert(
+          "Reenviamos o e-mail de verificação. Confira sua caixa de entrada."
+        );
       }
     } catch {
       setErr("Erro ao reenviar verificação.");
@@ -117,14 +106,20 @@ export default function LoginPage() {
     }
   }
 
+  const loginHrefGoogleCallback = "/cursos";
+
   return (
     <main className="min-h-dvh grid place-items-center bg-neutral-50">
-      <form onSubmit={onSubmit} className="w-full max-w-sm rounded-2xl bg-white p-6 shadow">
-        <h1 className="text-2xl font-bold mb-4"></h1>
+      <form
+        onSubmit={onSubmit}
+        className="w-full max-w-sm rounded-2xl bg-white p-6 shadow"
+      >
+        <h1 className="text-2xl font-bold mb-4">Entrar</h1>
 
         {info === "verify" && (
           <div className="mb-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2 text-sm">
-            Conta criada! Enviamos um e-mail para confirmar seu endereço. Verifique sua caixa de entrada.
+            Conta criada! Enviamos um e-mail para confirmar seu endereço.
+            Verifique sua caixa de entrada.
           </div>
         )}
 
@@ -150,7 +145,8 @@ export default function LoginPage() {
             <div className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 text-sm">
               {err}
               <div className="mt-2 text-xs">
-                Se você acabou de se cadastrar e tem 13 anos ou mais, confirme seu e-mail.{" "}
+                Se você acabou de se cadastrar e tem 13 anos ou mais, confirme
+                seu e-mail.{" "}
                 <button
                   type="button"
                   onClick={resendVerification}
@@ -162,12 +158,13 @@ export default function LoginPage() {
             </div>
           )}
 
+          {/* BOTÃO DE ENTRAR */}
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-[#ffab40] text-white font-semibold py-2 shadow disabled:opacity-60"
+            className="w-full flex items-center justify-center rounded-xl bg-[#ffab40] text-white text-[15px] font-semibold py-2 shadow disabled:opacity-60"
           >
-            {loading ? "Entrando…" : ""}
+            <span>{loading ? "Entrando…" : "Entrar"}</span>
           </button>
         </div>
 
@@ -183,12 +180,19 @@ export default function LoginPage() {
           {hasGoogle && (
             <button
               type="button"
-              onClick={() => signIn("google", { callbackUrl: callback })}
+              onClick={() =>
+                signIn("google", { callbackUrl: loginHrefGoogleCallback })
+              }
               className="w-full inline-flex items-center justify-center gap-3 rounded-[4px] border border-[#dadce0] bg-white px-4 py-2 text-[14px] font-medium text-[#1f1f1f] shadow-sm hover:bg-[#f8f9fa] active:bg-[#f1f3f4] cursor-pointer"
               style={{ lineHeight: 1 }}
-              aria-label=" com Google"
+              aria-label="Entrar com Google"
             >
-              <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 48 48"
+                aria-hidden="true"
+              >
                 <path
                   fill="#EA4335"
                   d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.9-6.9C35.9 2.2 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l8.06 6.26C12.2 13.7 17.59 9.5 24 9.5z"
@@ -213,11 +217,18 @@ export default function LoginPage() {
           {hasAzure && (
             <button
               type="button"
-              onClick={() => signIn("azure-ad", { callbackUrl: callback })}
+              onClick={() =>
+                signIn("azure-ad", { callbackUrl: "/cursos" })
+              }
               className="w-full inline-flex items-center justify-center gap-3 rounded-xl border border-neutral-300 bg-white px-4 py-2 text-[14px] font-semibold text-neutral-900 shadow-sm hover:bg-neutral-50 cursor-pointer"
               title="Entrar com Microsoft"
             >
-              <svg width="18" height="18" viewBox="0 0 23 23" aria-hidden="true">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 23 23"
+                aria-hidden="true"
+              >
                 <rect width="10" height="10" x="1" y="1" fill="#f35325" />
                 <rect width="10" height="10" x="12" y="1" fill="#81bc06" />
                 <rect width="10" height="10" x="1" y="12" fill="#05a6f0" />
