@@ -82,7 +82,6 @@ export default function AppTopBar() {
         disabled: !(courseSlug && moduleSlug),
       },
     ];
-    // Itens administrativos só para ADMIN/STAFF
     if (role === "ADMIN" || role === "STAFF") {
       arr.push({ label: "Cadastrar Módulos", href: "/admin/modules/new" });
       arr.push({ label: "Cadastrar Unidades", href: "/admin/units/new" });
@@ -93,11 +92,11 @@ export default function AppTopBar() {
   // Link de login com retorno à rota atual
   const loginHref = `/login?callback=${encodeURIComponent(pathname || "/")}`;
 
-  // Bloco de marca (logo + texto), reaproveitado em versão link e versão "estática"
+  // Marca única: logo + texto (usada tanto logado quanto deslogado)
   const Brand = (
     <>
       <Image
-        // garanta que exista um arquivo /public/8bits_logo.png neste projeto
+        // garanta que exista /public/8bits_logo.png neste projeto (a mesma logo que você usa no site)
         src="/8bits_logo.png"
         alt="Logo 8bits"
         width={32}
@@ -119,7 +118,7 @@ export default function AppTopBar() {
         bg-neutral-100/50 backdrop-blur-md shadow-sm ${TEXT_MAIN}`}
         style={{ height: TOPBAR_H }}
       >
-        {/* Esquerda: hambúrguer (apenas autenticado) + logo/título */}
+        {/* Esquerda: hambúrguer (apenas autenticado) + marca */}
         <div className="flex items-center gap-4">
           {authed && (
             <button
@@ -136,7 +135,7 @@ export default function AppTopBar() {
           )}
 
           {authed ? (
-            // Autenticado: logo + título são atalho para /cursos
+            // Logado: marca clicável (atalho para projetos)
             <Link
               href="/cursos"
               className="flex items-center gap-3 select-none cursor-pointer"
@@ -144,14 +143,14 @@ export default function AppTopBar() {
               {Brand}
             </Link>
           ) : (
-            // Não autenticado: só mostra marca, sem link inútil
+            // Deslogado: mesma marca, mas estática (sem link inútil)
             <div className="flex items-center gap-3 select-none cursor-default">
               {Brand}
             </div>
           )}
         </div>
 
-        {/* placeholder central (se quiser título de contexto depois) */}
+        {/* placeholder central (para futuro título de contexto, se quiser) */}
         <div className="hidden md:block text-sm font-semibold opacity-80" />
 
         {/* Direita: menu do usuário (autenticado) ou CTA Entrar (deslogado) */}
