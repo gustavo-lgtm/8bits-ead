@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "seed:gamification": "node prisma/seed-gamification.js",
-    "seed:dev-user": "node prisma/seed-dev-user.js"
+    "seed:dev-user": "node prisma/seed-dev-user.js",
+    "seed:course-b001": "node prisma/seed-course-b001.js"
   },
   "dependencies": {
     "@next-auth/prisma-adapter": "^1.0.7",

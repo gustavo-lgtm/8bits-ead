@@ -145,8 +145,8 @@ export default function LoginPage() {
             <div className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 text-sm">
               {err}
               <div className="mt-2 text-xs">
-                Se você acabou de se cadastrar e tem 13 anos ou mais, confirme
-                seu e-mail.{" "}
+                Se você acabou de se cadastrar, confirme o e-mail que enviamos.
+                Se você tem menos de 13 anos, peça ajuda para seu responsável.{" "}
                 <button
                   type="button"
                   onClick={resendVerification}
