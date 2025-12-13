@@ -30,7 +30,7 @@ export async function POST(req: Request) {
       },
     });
 
-    const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+    const baseUrl = process.env.NEXTAUTH_URL || "http://app.8bitsedu.com.br";
     const link = `${baseUrl}/reset/${token}`;
 
     // envia o e-mail

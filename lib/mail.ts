@@ -2,7 +2,7 @@
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY || "");
-const APP_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
+const APP_URL = process.env.NEXTAUTH_URL || "http://app.8bitsedu.com.br";
 const FROM = process.env.EMAIL_FROM || "8bits <no-reply@8bitsedu.com.br>";
 
 /** CONSENTIMENTO (responsável) — já aprovado */

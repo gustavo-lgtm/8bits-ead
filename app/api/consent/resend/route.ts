@@ -28,7 +28,7 @@ export async function POST(req: Request) {
       data: { consentToken: token, consentExpires: expires },
     });
 
-    const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+    const baseUrl = process.env.NEXTAUTH_URL || "http://app.8bitsedu.com.br";
     const confirmUrl = `${baseUrl}/responsavel/consentir?token=${token}`;
 
     await sendConsentEmail({
