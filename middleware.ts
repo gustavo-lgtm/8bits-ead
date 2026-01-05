@@ -9,18 +9,26 @@ const PUBLIC_ROUTES: (string | RegExp)[] = [
   "/login",
   "/register",
   "/verify",
-  "/forgot", // <- ADICIONADO
+  "/forgot",
   "/responsavel/consentir",
   "/aguardando-consentimento",
 
   // Reset de senha (página com token)
-  /^\/reset\/.*/, // <- ADICIONADO
+  /^\/reset\/.*/,
 
   // Páginas de desbloqueio da box
   /^\/unlock\/.*/,
 
   // Endpoints internos do NextAuth e auth APIs
   /^\/api\/auth\/.*/,
+
+  // Consentimento (precisa ser público para o responsável autorizar via link)
+  "/api/consent/confirm",
+  "/api/consent/status",
+
+  // Se você também tiver endpoints públicos relacionados (opcional, caso existam)
+  // "/api/consent/debug",
+  // /^\/api\/consent\/.*/,  // use isso só se TODOS os endpoints /api/consent forem públicos
 
   // APIs específicas que podem ser públicas
   /^\/api\/unlock\/.*/,
@@ -104,4 +112,3 @@ export async function middleware(req: NextRequest) {
 export const config = {
   matcher: ["/((?!_next/static|_next/image).*)"],
 };
-
