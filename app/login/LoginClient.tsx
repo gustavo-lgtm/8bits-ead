@@ -1,7 +1,7 @@
 // app/login/LoginClient.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -107,6 +107,14 @@ export default function LoginPage() {
   }
 
   const loginHrefGoogleCallback = "/cursos";
+
+  // Navegação segura para links dentro do <form> (evita submit acidental no clique)
+  const go = (href: string) => (e: MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (loading) return;
+    router.push(href);
+  };
 
   return (
     <main className="min-h-dvh grid place-items-center bg-neutral-50">
@@ -217,9 +225,7 @@ export default function LoginPage() {
           {hasAzure && (
             <button
               type="button"
-              onClick={() =>
-                signIn("azure-ad", { callbackUrl: "/cursos" })
-              }
+              onClick={() => signIn("azure-ad", { callbackUrl: "/cursos" })}
               className="w-full inline-flex items-center justify-center gap-3 rounded-xl border border-neutral-300 bg-white px-4 py-2 text-[14px] font-semibold text-neutral-900 shadow-sm hover:bg-neutral-50 cursor-pointer"
               title="Entrar com Microsoft"
             >
@@ -240,10 +246,18 @@ export default function LoginPage() {
         </div>
 
         <div className="mt-4 flex items-center justify-between text-sm">
-          <a href="/forgot" className="text-neutral-700 hover:underline">
+          <a
+            href="/forgot"
+            onClick={go("/forgot")}
+            className="text-neutral-700 hover:underline"
+          >
             Esqueci minha senha
           </a>
-          <a href="/register" className="text-neutral-700 hover:underline">
+          <a
+            href="/register"
+            onClick={go("/register")}
+            className="text-neutral-700 hover:underline"
+          >
             Criar conta
           </a>
         </div>
