@@ -62,27 +62,65 @@ function driveOpenLink(driveFileIdOrUrl: string) {
   return `https://drive.google.com/open?id=${encodeURIComponent(parsed.id)}`;
 }
 
+// Remove pontuação comum no final de um link em texto
+function splitTrailingPunctuation(raw: string) {
+  // exemplo: "https://x.com/abc)." -> link="https://x.com/abc" tail=")."
+  const m = raw.match(/^(.*?)([)\].,;:!?]+)$/);
+  if (!m) return { link: raw, tail: "" };
+  return { link: m[1], tail: m[2] };
+}
+
+function normalizeHref(raw: string) {
+  const v = raw.trim();
+  if (!v) return null;
+
+  // já tem protocolo
+  if (/^https?:\/\//i.test(v)) return v;
+
+  // começa com www.
+  if (/^www\./i.test(v)) return `https://${v}`;
+
+  // domínios comuns sem protocolo (inclusive drive)
+  if (/^(drive\.google\.com|docs\.google\.com)/i.test(v)) return `https://${v}`;
+
+  return null;
+}
+
 function linkify(text: string): React.ReactNode[] {
   const t = text || "";
   if (!t.trim()) return [];
 
-  const parts = t.split(/(https?:\/\/[^\s]+)/g);
+  // Captura:
+  // - links com http/https
+  // - links começando com www.
+  // - links do Drive/Docs sem protocolo
+  const urlRe =
+    /((?:https?:\/\/|www\.)[^\s]+|(?:drive\.google\.com|docs\.google\.com)[^\s]+)/gi;
+
+  const parts = t.split(urlRe);
+
   return parts.map((part, i) => {
-    if (/^https?:\/\/[^\s]+$/g.test(part)) {
-      const href = part;
+    const hrefCandidate = normalizeHref(part);
+
+    if (hrefCandidate) {
+      const { link, tail } = splitTrailingPunctuation(hrefCandidate);
+      const label = splitTrailingPunctuation(part).link; // mantém o que o usuário digitou (sem pontuação final)
       return (
-        <a
-          key={`u-${i}`}
-          href={href}
-          target="_blank"
-          rel="noreferrer"
-          className="underline font-semibold text-neutral-800 hover:opacity-80"
-        >
-          {href}
-        </a>
+        <span key={`u-${i}`}>
+          <a
+            href={link}
+            target="_blank"
+            rel="noreferrer"
+            className="underline font-semibold text-neutral-800 hover:opacity-80"
+          >
+            {label}
+          </a>
+          {tail ? <span>{tail}</span> : null}
+        </span>
       );
     }
 
+    // texto normal, preserva quebras de linha
     const lines = part.split("\n");
     return (
       <span key={`t-${i}`}>
