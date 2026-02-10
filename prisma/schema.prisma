@@ -1,12 +1,12 @@
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
 generator client {
   provider = "prisma-client-js"
 }
-
 
 enum Role {
   USER
@@ -15,10 +15,10 @@ enum Role {
 }
 
 enum ConsentStatus {
-  NONE       // >=13 (não precisa) ou ainda não coletado
-  PENDING    // <13 aguardando responsável
-  APPROVED   // consentimento dado
-  REJECTED   // (opcional) responsável negou
+  NONE // >=13 (não precisa) ou ainda não coletado
+  PENDING // <13 aguardando responsável
+  APPROVED // consentimento dado
+  REJECTED // (opcional) responsável negou
 }
 
 model User {
@@ -38,17 +38,18 @@ model User {
   guardianName   String?
   guardianEmail  String?
   consentAt      DateTime?
-  consentMethod  String?        // "email_link", "school_tenant", etc.
-  consentToken   String?        // token de confirmação por e-mail (uso único)
-  consentExpires DateTime?      // validade do token
+  consentMethod  String? // "email_link", "school_tenant", etc.
+  consentToken   String? // token de confirmação por e-mail (uso único)
+  consentExpires DateTime? // validade do token
 
-  enrollments  UserCourse[]
-  accounts     Account[]
-  sessions     Session[]
-  unitProgress UserUnitProgress[]
+  enrollments         UserCourse[]
+  accounts            Account[]
+  sessions            Session[]
+  unitProgress        UserUnitProgress[]
+  activitySubmissions ActivitySubmission[]
   // Gamificação
-  xpEvents     UserXPEvent[]
-  xpBalances   UserXPBalance[]
+  xpEvents            UserXPEvent[]
+  xpBalances          UserXPBalance[]
 
   passwordResetTokens PasswordResetToken[]
   authEvents          AuthEvent[]
@@ -172,10 +173,11 @@ model Unit {
   // Regras por unidade
   thresholdPct Int @default(85) // percentual mínimo assistido para concluir
 
-  module   Module             @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  progress UserUnitProgress[]
+  module              Module               @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  progress            UserUnitProgress[]
   // Gamificação
-  xpEvents UserXPEvent[]
+  xpEvents            UserXPEvent[]
+  activitySubmissions ActivitySubmission[]
 
   @@unique([moduleId, slug])
   @@index([moduleId, sortIndex])
@@ -185,6 +187,7 @@ enum UnitType {
   VIDEO
   DOC
   LINK
+  ACTIVITY
 }
 
 /**
@@ -370,4 +373,58 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+/**
+ * ---------------------------
+ * ACTIVITY: entregas do aluno
+ * ----------------------------
+ */
+
+enum ActivityAttachmentKind {
+  FILE
+  IMAGE
+  VIDEO
+}
+
+model ActivitySubmission {
+  id     String @id @default(cuid())
+  userId String
+  unitId String
+
+  // Observações da entrega
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unit        Unit                 @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  attachments ActivityAttachment[]
+
+  // 1 submission por aluno por unidade (MVP). Depois podemos versionar tentativas.
+  @@unique([userId, unitId])
+  @@index([unitId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model ActivityAttachment {
+  id           String @id @default(cuid())
+  submissionId String
+
+  kind ActivityAttachmentKind @default(FILE)
+
+  // Onde o arquivo ficou salvo (Vercel Blob / S3 / etc.)
+  url String
+
+  // Metadados para UI
+  fileName  String
+  mimeType  String?
+  sizeBytes Int?
+
+  createdAt DateTime @default(now())
+
+  submission ActivitySubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId, createdAt])
 }
