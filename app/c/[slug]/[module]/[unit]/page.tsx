@@ -18,23 +18,53 @@ export default async function UnitPage({ params }: Props) {
   const userId: string | undefined = session?.user?.id;
 
   const unit = await prisma.unit.findFirst({
-    where: { slug: unitSlug, module: { slug: moduleSlug, course: { slug: courseSlug } } },
+    where: {
+      slug: unitSlug,
+      module: { slug: moduleSlug, course: { slug: courseSlug } },
+    },
     select: {
-      id: true, slug: true, title: true, description: true,
-      youtubeId: true, thresholdPct: true, xpValue: true,
-      isOptional: true, isExtra: true,
-      module: { select: { slug: true, title: true, course: { select: { slug: true, title: true } } } },
+      id: true,
+      slug: true,
+      title: true,
+      description: true,
+
+      type: true,
+      youtubeId: true,
+      thresholdPct: true,
+      url: true,
+      driveFileId: true,
+
+      xpValue: true,
+      isOptional: true,
+      isExtra: true,
+
+      module: {
+        select: {
+          slug: true,
+          title: true,
+          course: { select: { slug: true, title: true } },
+        },
+      },
     },
   });
 
   if (!unit) {
-    return <section className="p-6"><h1 className="text-lg font-semibold">Unidade não encontrada.</h1></section>;
+    return (
+      <section className="p-6">
+        <h1 className="text-lg font-semibold">Unidade não encontrada.</h1>
+      </section>
+    );
   }
 
-  const unitTypeLabel = unit.isExtra ? "Extra" : unit.isOptional ? "Opcional" : "Obrigatória";
+  const unitTypeLabel = unit.isExtra
+    ? "Extra"
+    : unit.isOptional
+    ? "Opcional"
+    : "Obrigatória";
+
   const unitXP = unit.xpValue ?? 30;
 
-  // progresso inicial do usuário (para abrir corretamente)
+  // progresso inicial do usuário
   let initialCompleted = false;
   let initialWatchedPct = 0;
   if (userId) {
@@ -42,7 +72,9 @@ export default async function UnitPage({ params }: Props) {
       where: { userId_unitId: { userId, unitId: unit.id } },
       select: { status: true, completedAt: true, watchedPct: true },
     });
-    initialCompleted = Boolean(prog?.completedAt && prog?.status === "COMPLETED");
+    initialCompleted = Boolean(
+      prog?.completedAt && prog?.status === "COMPLETED"
+    );
     initialWatchedPct = Math.max(0, Math.min(100, prog?.watchedPct ?? 0));
   }
 
@@ -56,8 +88,13 @@ export default async function UnitPage({ params }: Props) {
           slug: unit.slug,
           title: unit.title,
           description: unit.description ?? "",
+
+          type: unit.type,
           youtubeId: unit.youtubeId,
           thresholdPct: unit.thresholdPct ?? 85,
+          url: unit.url ?? null,
+          driveFileId: unit.driveFileId ?? null,
+
           unitTypeLabel,
           unitXP,
           courseTitle: unit.module.course.title,
