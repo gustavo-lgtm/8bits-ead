@@ -11,7 +11,7 @@ const prisma = new PrismaClient();
  * CONFIGURAÇÃO
  */
 const COURSE_ID = "cmiwhtn890000er8wvx2jmm9x";
-const HOW_MANY = 6; // quantidade de códigos a gerar
+const HOW_MANY = 1; // quantidade de códigos a gerar
 
 /**
  * Gera código no formato: SE7N4KDQ

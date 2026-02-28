@@ -58,8 +58,8 @@ export default async function UnlockPage({
         </p>
 
         <p className="mt-1 text-xs text-neutral-500">
-          Digite o código secreto que veio no card da sua box para liberar o
-          acesso às missões.
+          Digite o código secreto que veio na carta da box para liberar o
+          acesso à missão.
         </p>
 
         <UnlockForm slug={slug} />

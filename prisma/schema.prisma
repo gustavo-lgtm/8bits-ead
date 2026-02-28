@@ -101,6 +101,8 @@ model Course {
   enrollments UserCourse[]
   modules     Module[]
 
+  giftMessages GiftMessage[]
+
   // Gamificação
   xpEvents           UserXPEvent[]
   xpBalances         UserXPBalance[]
@@ -427,4 +429,19 @@ model ActivityAttachment {
   submission ActivitySubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
 
   @@index([submissionId, createdAt])
+}
+
+model GiftMessage {
+  id        String    @id @default(cuid())
+  courseId  String
+  code      String // mesmo code do CourseUnlockCode
+  fromName  String
+  message   String
+  createdAt DateTime  @default(now())
+  shownAt   DateTime?
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, code])
+  @@index([courseId, code])
 }

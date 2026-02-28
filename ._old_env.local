@@ -1,1 +1,1 @@
-DATABASE_URL="postgresql://neondb_owner:npg_Y16ZqlzNgspF@ep-aged-cell-acspxj98-pooler.sa-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"         
+DATABASE_URL="xxx"         
